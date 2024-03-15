@@ -4,12 +4,10 @@ package mastertracker
 type Record struct {
 	FileName       string
 	DataKeeperNode string
-	FilePath       string
 	IsDataNodeAlive bool
 }
 
 // Master represents the master data structure containing records
-type Mastertracker struct {
-	Records []Record
-}	
-
+type Master struct {
+	Records map[string]Record // Map with file path as key
+}
