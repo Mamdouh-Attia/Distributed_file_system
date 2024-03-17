@@ -1,0 +1,34 @@
+syntax = "proto3";
+////////Mamdouh////////
+//To asaad , omar and Nabil .. modify this file to add the necessary messages and services
+//after that run the following command in the terminal to generate the files
+//Please run the following command in the terminal
+// protoc --go-grpc_out=paths=source_relative:. --go_out=paths=source_relative:. internals/proto/dfs/dfs.proto
+
+option go_package =  "Distributed_file_system/internals/proto/dfs";
+
+package dfs;
+
+message File {
+    string name = 1;
+    string content = 2;
+}
+
+message Heartbeat {
+    int32 id = 1;
+    string ip = 2;
+    int32 port = 3;
+}
+
+message HeartbeatResponse {
+    int32 id = 1;
+    string ip = 2;
+    int32 port = 3;
+    string status = 4;
+}
+
+service HeartbeatUpdate {
+    rpc HeartbeatUpdate (Heartbeat) returns (HeartbeatResponse) {}
+}
+
+
