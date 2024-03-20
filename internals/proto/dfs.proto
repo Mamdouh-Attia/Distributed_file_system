@@ -64,18 +64,13 @@ message DownloadFileResponse {
     bytes content = 1;
 }
 
-// message CopyFileRequest {
-//     string filePath=3;
-// }
 
-// message CopyFileResponse {
-    
-//     // I think it should return the file itself
-//     bytes content = 1;
-// }
-
-message DownloadResponse {
+message AskForDownloadResponse {
     map<string, string> fileLocations = 1;
+}
+
+message AskForDownloadRequest {
+    string fileName = 1;
 }
 
 service DistributedFileSystem {
@@ -95,7 +90,7 @@ service DistributedFileSystem {
 
     
     // Downloading sequence (from master to client)
-    rpc DownloadRequest(Empty) returns (DownloadResponse){}
+    rpc AskForDownload(AskForDownloadRequest) returns (AskForDownloadResponse){}
     rpc DownloadFile(DownloadFileRequest) returns (DownloadFileResponse){}
 
 }
