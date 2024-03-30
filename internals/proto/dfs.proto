@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+option go_package =  "Distributed_file_system/internals/utils";
+
+package dfs;
+
+
+message UploadResponse { 
+    string port = 1;
+}
+
+message File {
+    string name = 1;
+    bytes content = 2;
+    string masterPort = 3;
+    string clientPort = 4;
+}
+
+message Empty {}
+
+message DataKeeper {
+    int32 id = 1;
+    string ip = 2;
+    string port = 3;
+}
+
+message Record{
+    DataKeeper dataKeeper=1;
+    string fileName=2;
+    string filePath=3;
+    bool alive = 4;
+}
+
+message UploadNotification{
+
+    Record tableEntry=1;
+    string clientPort=2;
+}
+
+message UploadNotificationResponse {
+    bool success = 1;
+}
+
+message FileLocation {
+    string fileName = 1;
+    repeated DataKeeper dataKeepers = 2;
+}
+
+message ReplicateFileRequest{
+    string filePath=1;
+    string sourceMachineIP=2;
+    string sourceMachinePort=3;
+}
+message ReplicateFileResponse{
+    bool success=1;
+}
+
+message DownloadFileRequest {
+    string filePath=1;
+}
+
+message DownloadFileResponse {
+    bytes content = 1;
+}
+
+
+message AskForDownloadResponse {
+    map<string, string> fileLocations = 1;
+}
+
+message AskForDownloadRequest {
+    string fileName = 1;
+}
+
+service DistributedFileSystem {
+    
+    // Check if the data node is alive
+    rpc HeartbeatUpdate(DataKeeper) returns (Empty) {}
+
+    // Uploading sequence
+    rpc UploadRequest(Empty) returns (UploadResponse){}
+    rpc NotifyCompletedUpload(UploadNotification) returns (UploadNotificationResponse){}
+    
+    // Replication sequence
+    rpc ReplicateFile(ReplicateFileRequest) returns (ReplicateFileResponse){}
+    
+    // // copy file from one data node to another
+    // rpc CopyFile(CopyFileRequest) returns (CopyFileResponse){}
+
+    
+    // Downloading sequence (from master to client)
+    rpc AskForDownload(AskForDownloadRequest) returns (AskForDownloadResponse){}
+    rpc DownloadFile(DownloadFileRequest) returns (DownloadFileResponse){}
+
+}
