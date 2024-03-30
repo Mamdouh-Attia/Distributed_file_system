@@ -1,6 +1,8 @@
-package data_keeper_node
+package main
 
 import (
+	pb "Distributed_file_system/internals/pb"
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -12,12 +14,12 @@ import (
 type DataKeeperNode struct {
 	ID    int      // Unique identifier for the node
 	IP    string   // IP address of the node
-	Port  string      // Port number the node is listening on
+	Port  string   // Port number the node is listening on
 	Files []string // List of filenames stored on the node
 }
 
 // NewDataKeeperNode creates a new DataKeeperNode instance with the provided parameters.
-func NewDataKeeperNode(id int,  ip string, port string, files []string) *DataKeeperNode {
+func NewDataKeeperNode(id int, ip string, port string, files []string) *DataKeeperNode {
 	return &DataKeeperNode{
 		ID:    id,
 		IP:    ip,
@@ -43,18 +45,28 @@ func (n *DataKeeperNode) RemoveFile(filename string) {
 
 func main() {
 	// Create a new DataKeeperNode instance
-	// node := NewDataKeeperNode(1, "Node1", "localhost", 8080, []string{"2MB"})
+	node := NewDataKeeperNode(1, "localhost", "8080", []string{"2MB"})
 	// Set up a connection to the server.
 	conn, err := grpc.Dial("localhost:8080", grpc.WithInsecure())
 	if err != nil {
-		fmt.Printf("Failed to connect to server: %v", err)
-		return
+		log.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
 	// client := pb.NewHeartbeatUpdateClient(conn)
 	log.Printf("Connected to server: %v", "localhost:8080")
 	done := make(chan struct{})
 	defer close(done) // close the done channel when the main function returns
+	// Create a client for the DistributedFileSystem service
+	client := pb.NewDistributedFileSystemClient(conn)
+	//Flow :
+	// 1. Send a datakeeper node registration request to the server
+
+	regResult, err := client.RegisterDataNode(context.Background(), &pb.RegisterDataNodeRequest{DataKeeper: &pb.DataKeeper{Id: int32(node.ID), Ip: node.IP, Port: node.Port}})
+	if err != nil {
+		log.Fatalf("Failed to register datakeeper node: %v", err)
+	}
+	log.Printf("Datakeeper node registration response: %v", regResult)
+
 	// thread to send heartbeat to server
 	go func() {
 		// Send a heartbeat to the server every 5 seconds
