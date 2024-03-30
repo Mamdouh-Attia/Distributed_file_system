@@ -39,7 +39,6 @@ message UploadNotification{
 
 message UploadNotificationResponse {
     bool success = 1;
-
 }
 
 message FileLocation {
