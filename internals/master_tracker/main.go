@@ -15,20 +15,20 @@ import (
 type Record struct {
 	FileName         string
 	FilePath         string
-	alive			bool
+	alive            bool
 	DataKeeperNodeID int
 }
 
 // Master represents the master data structure containing records
 type Master struct {
-	Records []Record // List of records in the master
+	Records         []Record // List of records in the master
 	DataKeeperNodes []data_keeper_node.DataKeeperNode
 }
 
 // NewMaster creates a new Master instance'
 func NewMaster() *Master {
 	return &Master{
-		Records: []Record{}, // Initialize the list of records to be empty
+		Records:         []Record{}, // Initialize the list of records to be empty
 		DataKeeperNodes: []data_keeper_node.DataKeeperNode{},
 	}
 }
@@ -71,7 +71,7 @@ func (m *Master) GetRecordsByDataKeeperNode(dataKeeperNodeId int) []Record {
 	return records
 }
 
-func (m* Master) GetDataKeeperNodeById(dataKeeperNodeId int) data_keeper_node.DataKeeperNode {
+func (m *Master) GetDataKeeperNodeById(dataKeeperNodeId int) data_keeper_node.DataKeeperNode {
 	for _, dataKeeperNode := range m.DataKeeperNodes {
 		if dataKeeperNode.ID == dataKeeperNodeId {
 			return dataKeeperNode
@@ -80,13 +80,20 @@ func (m* Master) GetDataKeeperNodeById(dataKeeperNodeId int) data_keeper_node.Da
 	return data_keeper_node.DataKeeperNode{}
 }
 
+// grpc function to handle the request from data node to register itself in the master
+func (s *Master) RegisterDataNode(ctx context.Context, dk *pb.DataKeeper) (pb.Empty, error) {
+	// add the data node to the master
+	s.DataKeeperNodes = append(s.DataKeeperNodes, *data_keeper_node.NewDataKeeperNode(int(dk.Id), dk.Ip, dk.Port, []string{}))
+	//print the data node
+	log.Printf("DataKeeperNode: %v", s.DataKeeperNodes)
+	return pb.Empty{}, nil
+}
 
 // grpc function to update the master with the new status of the data node
 func (s *Master) HeartbeatUpdate(ctx context.Context, dk *pb.DataKeeper) (pb.Empty, error) {
 
 	// get all records with the same datakeeper node id
 	records := s.GetRecordsByDataKeeperNode(int(dk.Id))
-
 
 	// if the datakeeper node is in the master, update its status
 	for _, record := range records {
@@ -96,9 +103,9 @@ func (s *Master) HeartbeatUpdate(ctx context.Context, dk *pb.DataKeeper) (pb.Emp
 	return pb.Empty{}, nil
 }
 
-// grpc function to handle the request from client to upload a file 
+// grpc function to handle the request from client to upload a file
 func (s *Master) UploadFile(ctx context.Context, file *pb.Empty) (pb.UploadResponse, error) {
-	
+
 	// Choose a random datakeeper node to store the file
 	dataKeeperNodeID := s.Records[rand.Intn(len(s.Records))].DataKeeperNodeID
 
@@ -111,13 +118,13 @@ func (s *Master) UploadFile(ctx context.Context, file *pb.Empty) (pb.UploadRespo
 
 // grpc function to handle the request from client to download a file
 func (s *Master) AskForDownload(ctx context.Context, file *pb.AskForDownloadRequest) (pb.AskForDownloadResponse, error) {
-	
+
 	// get all records with the same filename
 	records := s.GetRecordsByFilename(file.FileName)
 
 	// if the file is not in the master, return an error
 	if len(records) == 0 {
-		
+
 		// return error, that the file does not exist
 		return pb.AskForDownloadResponse{}, nil
 	}
@@ -126,14 +133,13 @@ func (s *Master) AskForDownload(ctx context.Context, file *pb.AskForDownloadRequ
 	FileLocations := make(map[string]string)
 	for _, record := range records {
 		dataKeeperNode := s.GetDataKeeperNodeById(record.DataKeeperNodeID)
-		
+
 		FileLocations[dataKeeperNode.Port] = dataKeeperNode.IP
 	}
 
 	// return the datakeeper nodes to the client
 	return pb.AskForDownloadResponse{FileLocations: FileLocations}, nil
 }
-
 
 func main() {
 	// Set up the master
