@@ -16,18 +16,20 @@ type Record struct {
 	FileName         string
 	FilePath         string
 	alive			bool
-	DataKeeperNode data_keeper_node.DataKeeperNode
+	DataKeeperNodeID int
 }
 
 // Master represents the master data structure containing records
 type Master struct {
 	Records []Record // List of records in the master
+	DataKeeperNodes []data_keeper_node.DataKeeperNode
 }
 
 // NewMaster creates a new Master instance'
 func NewMaster() *Master {
 	return &Master{
 		Records: []Record{}, // Initialize the list of records to be empty
+		DataKeeperNodes: []data_keeper_node.DataKeeperNode{},
 	}
 }
 
@@ -40,7 +42,7 @@ func (m *Master) AddRecord(record Record) {
 // optional parameters to remove a record either by filename or by datakeeper node
 func (m *Master) RemoveRecord(filename string, dataKeeperNodeId int) {
 	for i, record := range m.Records {
-		if record.FileName == filename && record.DataKeeperNode.ID == dataKeeperNodeId {
+		if record.FileName == filename && record.DataKeeperNodeID == dataKeeperNodeId {
 			m.Records = append(m.Records[:i], m.Records[i+1:]...)
 			break
 		}
@@ -62,11 +64,20 @@ func (m *Master) GetRecordsByFilename(filename string) []Record {
 func (m *Master) GetRecordsByDataKeeperNode(dataKeeperNodeId int) []Record {
 	records := []Record{}
 	for _, record := range m.Records {
-		if record.DataKeeperNode.ID == dataKeeperNodeId {
+		if record.DataKeeperNodeID == dataKeeperNodeId {
 			records = append(records, record)
 		}
 	}
 	return records
+}
+
+func (m* Master) GetDataKeeperNodeById(dataKeeperNodeId int) data_keeper_node.DataKeeperNode {
+	for _, dataKeeperNode := range m.DataKeeperNodes {
+		if dataKeeperNode.ID == dataKeeperNodeId {
+			return dataKeeperNode
+		}
+	}
+	return data_keeper_node.DataKeeperNode{}
 }
 
 
@@ -89,7 +100,10 @@ func (s *Master) HeartbeatUpdate(ctx context.Context, dk *pb.DataKeeper) (pb.Emp
 func (s *Master) UploadFile(ctx context.Context, file *pb.Empty) (pb.UploadResponse, error) {
 	
 	// Choose a random datakeeper node to store the file
-	dataKeeperNode := s.Records[rand.Intn(len(s.Records))].DataKeeperNode
+	dataKeeperNodeID := s.Records[rand.Intn(len(s.Records))].DataKeeperNodeID
+
+	// get the data node keeper by this id
+	dataKeeperNode := s.GetDataKeeperNodeById(dataKeeperNodeID)
 
 	// return the datakeeper node to the client
 	return pb.UploadResponse{Port: dataKeeperNode.Port}, nil
@@ -109,13 +123,15 @@ func (s *Master) AskForDownload(ctx context.Context, file *pb.AskForDownloadRequ
 	}
 
 	// get all Data nodes that has this file and return the port and Ip of each one in a map
-	dataKeeperNodes := make(map[string]string)
+	FileLocations := make(map[string]string)
 	for _, record := range records {
-		dataKeeperNodes[record.DataKeeperNode.Port] = record.DataKeeperNode.IP
+		dataKeeperNode := s.GetDataKeeperNodeById(record.DataKeeperNodeID)
+		
+		FileLocations[dataKeeperNode.Port] = dataKeeperNode.IP
 	}
 
 	// return the datakeeper nodes to the client
-	return pb.AskForDownloadResponse{FileLocations: dataKeeperNodes}, nil
+	return pb.AskForDownloadResponse{FileLocations: FileLocations}, nil
 }
 
 
