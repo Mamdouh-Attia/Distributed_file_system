@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+option go_package =  "master_node/";
+
+package master_node;
+
+message Empty {}
+
+message DataKeeper {
+    int32 id = 1;
+    string ip = 2;
+    string port = 3;
+}
+
+message File {
+    string name = 1;
+    string path = 3;
+    string nodeID = 4;
+}
+
+// Register a data node to the master
+message RegisterDataNodeRequest {
+    DataKeeper dataKeeper = 1;
+}
+
+message RegisterDataNodeResponse {
+    bool success = 1;
+}
+
+message ReceiveFileListRequest {
+    repeated File files = 1;
+}
+
+message ReceiveFileListResponse {
+    bool success = 1;
+}   
+
+
+message AskForDownloadResponse {
+    map<string, string> fileLocations = 1;
+}
+
+message AskForDownloadRequest {
+    string fileName = 1;
+}
+
+message DownloadFileRequest {
+    string filePath=1;
+}
+
+message DownloadFileResponse {
+    bytes content = 1;
+}
+
+message UploadResponse { 
+    string port = 1;
+}
+
+service MasterNode {
+    // Register a data node to the master
+    rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeResponse);
+
+    // Receive the list of files from the Data node
+    rpc ReceiveFileList(ReceiveFileListRequest) returns (ReceiveFileListResponse);
+
+
+    // Downloading sequence (from master to client)
+    rpc AskForDownload(AskForDownloadRequest) returns (AskForDownloadResponse);
+    rpc DownloadFile(DownloadFileRequest) returns (DownloadFileResponse);
+
+    // The client should request from the master to upload a file
+    rpc UploadRequest(Empty) returns (UploadResponse);
+}

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option go_package =  "Distributed_file_system/internals/proto";
+
+package data_node;
+
+
+service DataNode {
+    
+}

@@ -91,9 +91,9 @@ message AskForDownloadRequest {
 
 service DistributedFileSystem {
     
-
     // Register a data node to the master
     rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeResponse) {}
+
     // Data node sends its file list to the master
     rpc SendFileList(SendFileListRequest) returns (SendFileListResponse) {}
 

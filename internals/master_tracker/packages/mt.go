@@ -14,14 +14,13 @@ type Record struct {
 	FilePath         string
 	alive            bool
 	DataKeeperNodeID int
-	mt.UnimplementedMasterNodeServer
 }
 
 // Master represents the master data structure containing records
 type Master struct {
+	mt.UnimplementedMasterNodeServer
 	Records         []Record // List of records in the master
 	DataKeeperNodes []dk.DataKeeperNode
-	
 }
 
 // NewMaster creates a new Master instance'
