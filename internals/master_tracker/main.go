@@ -2,13 +2,12 @@ package main
 
 import (
 	mt "Distributed_file_system/internals/master_tracker/packages"
+	pb "Distributed_file_system/internals/pb/master_node"
 	"log"
 	"net"
 
 	"google.golang.org/grpc"
 )
-
-
 
 func main() {
 	// Set up the master
@@ -21,7 +20,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
+	//register methods
+	//1.RegisterDataNode
+
 	s := grpc.NewServer()
+	pb.RegisterMasterNodeServer(s, master)
 	log.Printf("Master is serving")
 	// pb.RegisterHeartbeatUpdateServer(s, master)
 	if err := s.Serve(lis); err != nil {

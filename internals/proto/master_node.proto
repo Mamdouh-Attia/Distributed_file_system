@@ -14,8 +14,8 @@ message DataKeeper {
 
 message File {
     string name = 1;
-    string path = 3;
-    string nodeID = 4;
+    string path = 2;
+    bytes content = 3;
 }
 
 // Register a data node to the master
@@ -28,7 +28,8 @@ message RegisterDataNodeResponse {
 }
 
 message ReceiveFileListRequest {
-    repeated File files = 1;
+    int32 nodeID = 1;
+    repeated string files = 2;
 }
 
 message ReceiveFileListResponse {

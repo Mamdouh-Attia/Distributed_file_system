@@ -3,6 +3,7 @@ package mt
 import (
 	dk "Distributed_file_system/internals/data_keeper_node/packages"
 	mt "Distributed_file_system/internals/pb/master_node"
+	utils "Distributed_file_system/internals/utils"
 	"context"
 	"log"
 	"math/rand"
@@ -79,12 +80,16 @@ func (m *Master) GetDataKeeperNodeById(dataKeeperNodeId int) dk.DataKeeperNode {
 }
 
 // grpc function to handle the request from data node to register itself in the master
-func (s *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeRequest) (mt.RegisterDataNodeResponse, error) {
+func (s *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeRequest) (*mt.RegisterDataNodeResponse, error) {
+	//generate a new data node id
+	id := utils.GenerateID()
+	//TODO : if duplicate id, generate a new one
+
 	// add the data node to the master
-	s.DataKeeperNodes = append(s.DataKeeperNodes, *dk.NewDataKeeperNode(int(req.DataKeeper.Id), req.DataKeeper.Ip, req.DataKeeper.Port, []string{}))
+	s.DataKeeperNodes = append(s.DataKeeperNodes, *dk.NewDataKeeperNode(int(id), req.DataKeeper.Ip, req.DataKeeper.Port, []string{}))
 	//print the data node
 	log.Printf("DataKeeperNode: %v", s.DataKeeperNodes)
-	return mt.RegisterDataNodeResponse{Success: true}, nil
+	return &mt.RegisterDataNodeResponse{Success: true}, nil
 }
 
 // grpc function to update the master with the new status of the data node
@@ -115,7 +120,7 @@ func (s *Master) UploadFile(ctx context.Context, file *mt.Empty) (mt.UploadRespo
 }
 
 // grpc function to handle the request from client to download a file
-func (s *Master) AskForDownload(ctx context.Context, file *mt.AskForDownloadRequest) (mt.AskForDownloadResponse, error) {
+func (s *Master) AskForDownload(ctx context.Context, file *mt.AskForDownloadRequest) (*mt.AskForDownloadResponse, error) {
 
 	// get all records with the same filename
 	records := s.GetRecordsByFilename(file.FileName)
@@ -124,7 +129,7 @@ func (s *Master) AskForDownload(ctx context.Context, file *mt.AskForDownloadRequ
 	if len(records) == 0 {
 
 		// return error, that the file does not exist
-		return mt.AskForDownloadResponse{}, nil
+		return &mt.AskForDownloadResponse{}, nil
 	}
 
 	// get all Data nodes that has this file and return the port and Ip of each one in a map
@@ -136,5 +141,29 @@ func (s *Master) AskForDownload(ctx context.Context, file *mt.AskForDownloadRequ
 	}
 
 	// return the datakeeper nodes to the client
-	return mt.AskForDownloadResponse{FileLocations: FileLocations}, nil
+	return &mt.AskForDownloadResponse{FileLocations: FileLocations}, nil
+}
+
+// grpc function to recieve Files list from data node
+func (s *Master) ReceiveFileList(ctx context.Context, filesRequest *mt.ReceiveFileListRequest) (*mt.ReceiveFileListResponse, error) {
+
+	// get the data node keeper by this id
+	dataKeeperNode := s.GetDataKeeperNodeById(int(filesRequest.NodeID))
+
+	for _, file := range filesRequest.Files {
+		dataKeeperNode.AddFile(file)
+	}
+
+	// update the master with the new files list
+	for i, node := range s.DataKeeperNodes {
+		if node.ID == int(filesRequest.NodeID) {
+			s.DataKeeperNodes[i] = dataKeeperNode
+		}
+	}
+
+	// print the data node
+	log.Printf("DataKeeperNode: %v files: %v", dataKeeperNode, dataKeeperNode.Files)
+
+	// return success
+	return &mt.ReceiveFileListResponse{Success: true}, nil
 }
