@@ -1,10 +1,22 @@
 syntax = "proto3";
 
-option go_package =  "Distributed_file_system/internals/proto";
+option go_package =  "data_node_keeper/";
 
 package data_node;
 
 
+message ReceiveUploadedFileRequest {
+    string fileContent = 1;
+    string fileName = 2;
+}
+
+message ReceiveUploadedFileResponse {
+    bool success = 1;
+}
+
 service DataNode {
     
+    // Receive the file from the client
+    rpc ReceiveUploadedFile(ReceiveUploadedFileRequest) returns (ReceiveUploadedFileResponse);
+
 }

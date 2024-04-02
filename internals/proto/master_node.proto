@@ -54,7 +54,7 @@ message DownloadFileResponse {
     bytes content = 1;
 }
 
-message UploadResponse { 
+message AskForUploadResponse { 
     string port = 1;
 }
 
@@ -79,7 +79,7 @@ service MasterNode {
     rpc DownloadFile(DownloadFileRequest) returns (DownloadFileResponse);
 
     // The client should request from the master to upload a file
-    rpc UploadRequest(Empty) returns (UploadResponse);
+    rpc AskForUploadRequest(Empty) returns (AskForUploadResponse);
 
     // Check if the data node is alive
     rpc HeartbeatUpdate(HeartbeatUpdateRequest) returns (HeartbeatUpdateResponse);
