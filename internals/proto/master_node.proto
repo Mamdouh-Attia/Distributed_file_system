@@ -46,14 +46,6 @@ message AskForDownloadRequest {
     string fileName = 1;
 }
 
-message DownloadFileRequest {
-    string filePath=1;
-}
-
-message DownloadFileResponse {
-    bytes content = 1;
-}
-
 message UploadResponse { 
     string port = 1;
 }
@@ -66,6 +58,15 @@ message HeartbeatUpdateResponse {
     bool success = 1;
 }
 
+message DownloadFileRequest {
+    string fileName = 1;
+}
+
+//The master should respond with a list of machines IP addresses and ports that have the file requested
+message DownloadFileResponse {
+    repeated DataKeeper dataKeepers = 1;
+}
+
 service MasterNode {
     // Register a data node to the master
     rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeResponse);
@@ -76,11 +77,13 @@ service MasterNode {
 
     // Downloading sequence (from master to client)
     rpc AskForDownload(AskForDownloadRequest) returns (AskForDownloadResponse);
-    rpc DownloadFile(DownloadFileRequest) returns (DownloadFileResponse);
 
     // The client should request from the master to upload a file
     rpc UploadRequest(Empty) returns (UploadResponse);
 
     // Check if the data node is alive
     rpc HeartbeatUpdate(HeartbeatUpdateRequest) returns (HeartbeatUpdateResponse);
+
+    // The client should request from the master to download a file
+    rpc DownloadRequest(DownloadFileRequest) returns (DownloadFileResponse);
 }
