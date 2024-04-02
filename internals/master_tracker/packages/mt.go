@@ -7,6 +7,7 @@ import (
 	"context"
 	"log"
 	"math/rand"
+	"time"
 )
 
 // Record represents a single record in the master
@@ -22,6 +23,8 @@ type Master struct {
 	mt.UnimplementedMasterNodeServer
 	Records         []Record // List of records in the master
 	DataKeeperNodes []dk.DataKeeperNode
+	//map of datakeeper node id to timer to keep track of the heartbeat
+	Heartbeats map[int32]*time.Timer
 }
 
 // NewMaster creates a new Master instance'
@@ -29,6 +32,7 @@ func NewMaster() *Master {
 	return &Master{
 		Records:         []Record{}, // Initialize the list of records to be empty
 		DataKeeperNodes: []dk.DataKeeperNode{},
+		Heartbeats:      make(map[int32]*time.Timer),
 	}
 }
 
@@ -79,6 +83,19 @@ func (m *Master) GetDataKeeperNodeById(dataKeeperNodeId int) dk.DataKeeperNode {
 	return dk.DataKeeperNode{}
 }
 
+// function to kill the data node, will be associated with the heartbeat timer
+func (m *Master) KillDataNode(dataKeeperNodeId int32) {
+	// get all records with the same datakeeper node id
+	records := m.GetRecordsByDataKeeperNode(int(dataKeeperNodeId))
+
+	// if the datakeeper node is in the master, update its status
+	for _, record := range records {
+		record.alive = false
+	}
+	//log the data node is dead
+	log.Printf("DataKeeperNode: %v is dead", dataKeeperNodeId)
+}
+
 // grpc function to handle the request from data node to register itself in the master
 func (s *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeRequest) (*mt.RegisterDataNodeResponse, error) {
 	//generate a new data node id
@@ -89,6 +106,10 @@ func (s *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeR
 	s.DataKeeperNodes = append(s.DataKeeperNodes, *dk.NewDataKeeperNode(int(id), req.DataKeeper.Ip, req.DataKeeper.Port, []string{}))
 	//print the data node
 	log.Printf("DataKeeperNode: %v", s.DataKeeperNodes)
+	//start the heartbeat timer for this data node
+	s.Heartbeats[int32(id)] = time.AfterFunc(5*time.Second, func() {
+		s.KillDataNode(int32(id))
+	})
 	return &mt.RegisterDataNodeResponse{Success: true, NodeID: int32(id)}, nil
 }
 
@@ -99,6 +120,8 @@ func (s *Master) HeartbeatUpdate(ctx context.Context, dk *mt.HeartbeatUpdateRequ
 	// get all records with the same datakeeper node id
 	records := s.GetRecordsByDataKeeperNode(int(dk.NodeID))
 
+	//reset the heartbeat timer
+	s.Heartbeats[dk.NodeID].Reset(5 * time.Second)
 	// if the datakeeper node is in the master, update its status
 	for _, record := range records {
 		record.alive = true
