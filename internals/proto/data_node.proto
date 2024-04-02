@@ -26,7 +26,7 @@ message FileChunk {
 // Service for DataNode
 service DataNode {
     // RPC for getting the file size
-    rpc GetFileSize(FileRequest) returns (FileResponse) {}
+    rpc GetFileSize(FileRequest) returns (FileResponse);
     // RPC for downloading a file
-    rpc DownloadFile(FileRequest) returns (stream FileChunk) {}
+    rpc DownloadFile(FileRequest) returns (stream FileChunk);
 }
