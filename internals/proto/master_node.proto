@@ -25,6 +25,7 @@ message RegisterDataNodeRequest {
 
 message RegisterDataNodeResponse {
     bool success = 1;
+    int32 nodeID = 2;
 }
 
 message ReceiveFileListRequest {
