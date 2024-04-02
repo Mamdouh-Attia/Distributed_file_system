@@ -11,6 +11,11 @@ import (
 )
 
 func main() {
+
+	//Declarations
+
+
+
 	// Set up the master
 	master := mt.NewMaster()
 	// print the master
