@@ -1,77 +1,75 @@
-package data_keeper_node
+package main
 
 import (
-	"fmt"
+	dk "Distributed_file_system/internals/data_keeper_node/packages"
+	mt "Distributed_file_system/internals/pb/master_node"
+	utils "Distributed_file_system/internals/utils"
+	"context"
 	"log"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-// DataKeeperNode represents a node responsible for keeping track of files.
-type DataKeeperNode struct {
-	ID    int      // Unique identifier for the node
-	IP    string   // IP address of the node
-	Port  string      // Port number the node is listening on
-	Files []string // List of filenames stored on the node
-}
-
-// NewDataKeeperNode creates a new DataKeeperNode instance with the provided parameters.
-func NewDataKeeperNode(id int,  ip string, port string, files []string) *DataKeeperNode {
-	return &DataKeeperNode{
-		ID:    id,
-		IP:    ip,
-		Port:  port,
-		Files: files,
-	}
-}
-
-// AddFile adds a new file to the list of files stored on the node.
-func (n *DataKeeperNode) AddFile(filename string) {
-	n.Files = append(n.Files, filename)
-}
-
-// RemoveFile removes a file from the list of files stored on the node.
-func (n *DataKeeperNode) RemoveFile(filename string) {
-	for i, file := range n.Files {
-		if file == filename {
-			n.Files = append(n.Files[:i], n.Files[i+1:]...)
-			break
-		}
-	}
-}
-
 func main() {
+	//generat
 	// Create a new DataKeeperNode instance
-	// node := NewDataKeeperNode(1, "Node1", "localhost", 8080, []string{"2MB"})
+
+	node := dk.NewDataKeeperNode(1, "localhost", "8080", []string{"2MB"})
 	// Set up a connection to the server.
-	conn, err := grpc.Dial("localhost:8080", grpc.WithInsecure())
+	conn, err := grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Printf("Failed to connect to server: %v", err)
-		return
+		log.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
-	// client := pb.NewHeartbeatUpdateClient(conn)
 	log.Printf("Connected to server: %v", "localhost:8080")
-	done := make(chan struct{})
-	defer close(done) // close the done channel when the main function returns
-	// thread to send heartbeat to server
-	go func() {
-		// Send a heartbeat to the server every 5 seconds
-		for {
-			// res, err := client.HeartbeatUpdate(context.Background(), &pb.Heartbeat{Id: node.ID, Ip: node.IP, Port: node.Port})
-			if err != nil {
-				fmt.Printf("Failed to send heartbeat to server: %v", err)
-			}
-			// fmt.Printf("Heartbeat response: %v \n", res)
+	done := make(chan struct{}) // create a channel to keep the main function alive
+	defer close(done)           // close the done channel when the main function returns
+	// Create a client for the DistributedFileSystem service
+	client := mt.NewMasterNodeClient(conn)
+	//Flow :
+	// 1. Send a datakeeper node registration request to the server
 
-			// Sleep for 5 seconds
+	regResult, err := client.RegisterDataNode(context.Background(), &mt.RegisterDataNodeRequest{DataKeeper: &mt.DataKeeper{Id: int32(node.ID), Ip: node.IP, Port: node.Port}})
+
+	if err != nil {
+		log.Fatalf("Failed to register datakeeper node: %v", err)
+	}
+	log.Printf("Datakeeper node registration response: %v", regResult)
+	log.Printf("Datakeeper node ID: %v", regResult.NodeID)
+	node.ID = int(regResult.NodeID)
+
+	// 2. scan the current directory for files
+	files, err := utils.FindMP4Files("./data")
+	if err != nil {
+		log.Fatalf("Failed to find mp4 files: %v", err)
+	}
+	//print the files
+	log.Printf("Files found: %v", files)
+	// 3. send the file list to the server
+	updateFilesListResult, err := client.ReceiveFileList(context.Background(), &mt.ReceiveFileListRequest{NodeID: int32(node.ID), Files: files})
+	if err != nil {
+		log.Fatalf("Failed to update file list: %v", err)
+	}
+	log.Printf("File list update response: %v", updateFilesListResult)
+
+	//sepreate goroutine to send the heartbeat
+	go func() {
+		for {
+			// send the heartbeat
+			_, err := client.HeartbeatUpdate(context.Background(), &mt.HeartbeatUpdateRequest{NodeID: int32(node.ID)})
+			if err != nil {
+				log.Fatalf("Failed to send heartbeat: %v", err)
+			}
+			// sleep for 1 seconds
 			time.Sleep(1 * time.Second)
 		}
-		// Close the done channel when the thread exits
-		done <- struct{}{}
+		// close the done channel
+		done <- struct {
+		}{}
 	}()
-	// Wait for the thread to exit
-	<-done
+	// keep the main function alive
+	<-done //this statement will block the main function until the done channel is closed
 
 }

@@ -11,9 +11,8 @@ message UploadResponse {
 
 message File {
     string name = 1;
-    bytes content = 2;
-    string masterPort = 3;
-    string clientPort = 4;
+    string path = 3;
+    string nodeID = 4;
 }
 
 message Empty {}
@@ -29,6 +28,24 @@ message Record{
     string fileName=2;
     string filePath=3;
     bool alive = 4;
+}
+
+// Register a data node to the master
+message RegisterDataNodeRequest {
+    DataKeeper dataKeeper = 1;
+}
+
+message RegisterDataNodeResponse {
+    bool success = 1;
+}
+
+// Data node sends its file list to the master
+message SendFileListRequest {
+    repeated File files = 1;
+}
+
+message SendFileListResponse {
+    bool success = 1;
 }
 
 message UploadNotification{
@@ -74,6 +91,12 @@ message AskForDownloadRequest {
 
 service DistributedFileSystem {
     
+    // Register a data node to the master
+    rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeResponse) {}
+
+    // Data node sends its file list to the master
+    rpc SendFileList(SendFileListRequest) returns (SendFileListResponse) {}
+
     // Check if the data node is alive
     rpc HeartbeatUpdate(DataKeeper) returns (Empty) {}
 
