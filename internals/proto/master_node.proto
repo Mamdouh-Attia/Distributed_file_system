@@ -58,6 +58,14 @@ message UploadResponse {
     string port = 1;
 }
 
+message HeartbeatUpdateRequest {
+    int32 nodeID = 1;
+}
+
+message HeartbeatUpdateResponse {
+    bool success = 1;
+}
+
 service MasterNode {
     // Register a data node to the master
     rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeResponse);
@@ -72,4 +80,7 @@ service MasterNode {
 
     // The client should request from the master to upload a file
     rpc UploadRequest(Empty) returns (UploadResponse);
+
+    // Check if the data node is alive
+    rpc HeartbeatUpdate(HeartbeatUpdateRequest) returns (HeartbeatUpdateResponse);
 }

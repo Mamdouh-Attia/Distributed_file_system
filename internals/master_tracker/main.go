@@ -5,6 +5,7 @@ import (
 	pb "Distributed_file_system/internals/pb/master_node"
 	"log"
 	"net"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -31,4 +32,23 @@ func main() {
 		log.Fatalf("failed to serve: %v", err)
 	}
 
+	// separate goroutine to handle the heartbeat updates
+	go func() {
+		for {
+			//change all the records to false
+			// for i := range master.Records {
+			// master.DataKeeperNodes[master.Records[i].DataKeeperNodeID].
+			// }
+			// sleep for 2 second
+			time.Sleep(2 * time.Second)
+			// check if the records are alive
+			for i := range master.Records {
+				if master.DataKeeperNodes[master.Records[i].DataKeeperNodeID].Files == nil {
+					// remove the record
+					master.RemoveRecord(master.Records[i].FileName, master.Records[i].DataKeeperNodeID)
+				}
+			}
+
+		}
+	}()
 }

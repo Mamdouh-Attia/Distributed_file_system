@@ -89,21 +89,24 @@ func (s *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeR
 	s.DataKeeperNodes = append(s.DataKeeperNodes, *dk.NewDataKeeperNode(int(id), req.DataKeeper.Ip, req.DataKeeper.Port, []string{}))
 	//print the data node
 	log.Printf("DataKeeperNode: %v", s.DataKeeperNodes)
-	return &mt.RegisterDataNodeResponse{Success: true}, nil
+	return &mt.RegisterDataNodeResponse{Success: true, NodeID: int32(id)}, nil
 }
 
 // grpc function to update the master with the new status of the data node
-func (s *Master) HeartbeatUpdate(ctx context.Context, dk *mt.DataKeeper) (mt.Empty, error) {
+func (s *Master) HeartbeatUpdate(ctx context.Context, dk *mt.HeartbeatUpdateRequest) (*mt.HeartbeatUpdateResponse, error) {
 
+	log.Printf("HeartbeatUpdateRequest: ")
 	// get all records with the same datakeeper node id
-	records := s.GetRecordsByDataKeeperNode(int(dk.Id))
+	records := s.GetRecordsByDataKeeperNode(int(dk.NodeID))
 
 	// if the datakeeper node is in the master, update its status
 	for _, record := range records {
 		record.alive = true
 	}
+	//log the data node is alive
+	log.Printf("DataKeeperNode: %v is alive", dk.NodeID)
 
-	return mt.Empty{}, nil
+	return &mt.HeartbeatUpdateResponse{Success: true}, nil
 }
 
 // grpc function to handle the request from client to upload a file
