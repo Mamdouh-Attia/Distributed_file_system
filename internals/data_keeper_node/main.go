@@ -2,10 +2,14 @@ package main
 
 import (
 	dk "Distributed_file_system/internals/data_keeper_node/packages"
+	pb "Distributed_file_system/internals/pb/data_node"
 	mt "Distributed_file_system/internals/pb/master_node"
 	utils "Distributed_file_system/internals/utils"
 	"context"
 	"log"
+	"math/rand"
+	"net"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -13,10 +17,13 @@ import (
 )
 
 func main() {
-	//generat
+	//generate random port number
+	rand.Seed(time.Now().UnixNano())
+	port := rand.Intn(10000) + 10000
+	portStr := strconv.Itoa(port)
 	// Create a new DataKeeperNode instance
 
-	node := dk.NewDataKeeperNode(1, "localhost", "8080", []string{"2MB"})
+	node := dk.NewDataKeeperNode(1, "localhost", portStr, []string{"2MB"})
 	// Set up a connection to the server.
 	conn, err := grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -69,6 +76,27 @@ func main() {
 		done <- struct {
 		}{}
 	}()
+
+	//sepate goroutine to serve the data node
+	go func() {
+		// Set up the gRPC server to listen on its port
+		lis, err := net.Listen("tcp", node.IP+":"+node.Port)
+		if err != nil {
+			log.Fatalf("Failed to listen: %v", err)
+		}
+		// Create a new gRPC server
+		server := grpc.NewServer()
+		// Register the DataNode service with the server
+		pb.RegisterDataNodeServer(server, node)
+		// Serve the server
+		if err := server.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
+		}
+		// close the done channel
+		done <- struct {
+		}{}
+	}()
+
 	// keep the main function alive
 	<-done //this statement will block the main function until the done channel is closed
 

@@ -106,6 +106,8 @@ func (s *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeR
 	s.DataKeeperNodes = append(s.DataKeeperNodes, *dk.NewDataKeeperNode(int(id), req.DataKeeper.Ip, req.DataKeeper.Port, []string{}))
 	//print the data node
 	log.Printf("DataKeeperNode: %v", s.DataKeeperNodes)
+	// register file records in the master
+
 	//start the heartbeat timer for this data node
 	s.Heartbeats[int32(id)] = time.AfterFunc(5*time.Second, func() {
 		s.KillDataNode(int32(id))
@@ -184,6 +186,10 @@ func (s *Master) ReceiveFileList(ctx context.Context, filesRequest *mt.ReceiveFi
 	for i, node := range s.DataKeeperNodes {
 		if node.ID == int(filesRequest.NodeID) {
 			s.DataKeeperNodes[i] = dataKeeperNode
+			// update the records
+			for _, file := range filesRequest.Files {
+				s.AddRecord(Record{FileName: file, FilePath: file, alive: true, DataKeeperNodeID: int(filesRequest.NodeID)})
+			}
 		}
 	}
 
@@ -192,4 +198,35 @@ func (s *Master) ReceiveFileList(ctx context.Context, filesRequest *mt.ReceiveFi
 
 	// return success
 	return &mt.ReceiveFileListResponse{Success: true}, nil
+}
+
+// grpc function to handle download request from client
+func (s *Master) DownloadRequest(ctx context.Context, fileReq *mt.DownloadFileRequest) (*mt.DownloadFileResponse, error) {
+
+	//print all records
+	log.Printf("Master: %v", s.Records)
+	log.Printf("Request for file: %v", fileReq.FileName)
+
+	// get all records with the same fileReqname
+	records := s.GetRecordsByFilename (fileReq.FileName)
+
+	// if the file is not in the master, return an error
+	if len(records) == 0 {
+
+		// return error, that the file does not exist
+		return &mt.DownloadFileResponse{}, nil
+	}
+
+	// return list of DataKeeper struct used in response
+	MachinesList := make([]*mt.DataKeeper, 0)
+	for _, record := range records {
+		dataKeeperNode := s.GetDataKeeperNodeById(record.DataKeeperNodeID)
+		MachinesList = append(MachinesList, &mt.DataKeeper{Id: int32(dataKeeperNode.ID), Ip: dataKeeperNode.IP, Port: dataKeeperNode.Port})
+	}
+
+	log.Printf("Master: Found the file %v in the following datakeeper nodes: %v", fileReq.FileName, MachinesList)
+
+	// return the datakeeper nodes to the client
+	return &mt.DownloadFileResponse{DataKeepers: MachinesList}, nil
+
 }
