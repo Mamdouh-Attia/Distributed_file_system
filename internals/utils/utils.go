@@ -2,6 +2,7 @@
 package utils
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -44,4 +45,28 @@ func FindMP4Files(dir string) ([]string, error) {
 	}
 
 	return mp4Files, nil
+}
+
+
+
+func SaveFile(directory, filename string, data []byte) error {
+    err := os.MkdirAll(directory, 0755) // Create the directory if it doesn't exist
+    if err != nil {
+        return err
+    }
+
+    fullPath := filepath.Join(directory, filename)
+    file, err := os.Create(fullPath)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    _, err = file.Write(data)
+    if err != nil {
+        return err
+    }
+
+    fmt.Printf("File saved as %s\n", fullPath)
+    return nil
 }

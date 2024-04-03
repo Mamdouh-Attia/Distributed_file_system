@@ -15,8 +15,8 @@ import (
 func main() {
 	//generat
 	// Create a new DataKeeperNode instance
-
 	node := dk.NewDataKeeperNode(1, "localhost", "8080", []string{"2MB"})
+	
 	// Set up a connection to the server.
 	conn, err := grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -47,6 +47,7 @@ func main() {
 	}
 	//print the files
 	log.Printf("Files found: %v", files)
+	
 	// 3. send the file list to the server
 	updateFilesListResult, err := client.ReceiveFileList(context.Background(), &mt.ReceiveFileListRequest{NodeID: int32(node.ID), Files: files})
 	if err != nil {
