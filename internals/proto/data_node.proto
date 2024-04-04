@@ -1,10 +1,32 @@
 syntax = "proto3";
 
-option go_package =  "Distributed_file_system/internals/proto";
+option go_package =  "data_node/";
 
 package data_node;
 
+// Request for downloading a file
+message FileRequest {
+    // Name of the file to download
+    string fileName = 1;
+}
 
-service DataNode {
+// Response for downloading a file
+message FileResponse {
+    // Content of the file
+    // The file size
+    string fileName = 1;
+    int64 fileSize = 2;
     
+}
+
+message FileChunk {
+    bytes data = 1;
+}
+
+// Service for DataNode
+service DataNode {
+    // RPC for getting the file size
+    rpc GetFileSize(FileRequest) returns (FileResponse);
+    // RPC for downloading a file
+    rpc DownloadFile(FileRequest) returns (stream FileChunk);
 }

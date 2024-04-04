@@ -22,9 +22,9 @@ const (
 	MasterNode_RegisterDataNode_FullMethodName = "/master_node.MasterNode/RegisterDataNode"
 	MasterNode_ReceiveFileList_FullMethodName  = "/master_node.MasterNode/ReceiveFileList"
 	MasterNode_AskForDownload_FullMethodName   = "/master_node.MasterNode/AskForDownload"
-	MasterNode_DownloadFile_FullMethodName     = "/master_node.MasterNode/DownloadFile"
 	MasterNode_UploadRequest_FullMethodName    = "/master_node.MasterNode/UploadRequest"
 	MasterNode_HeartbeatUpdate_FullMethodName  = "/master_node.MasterNode/HeartbeatUpdate"
+	MasterNode_DownloadRequest_FullMethodName  = "/master_node.MasterNode/DownloadRequest"
 )
 
 // MasterNodeClient is the client API for MasterNode service.
@@ -37,11 +37,12 @@ type MasterNodeClient interface {
 	ReceiveFileList(ctx context.Context, in *ReceiveFileListRequest, opts ...grpc.CallOption) (*ReceiveFileListResponse, error)
 	// Downloading sequence (from master to client)
 	AskForDownload(ctx context.Context, in *AskForDownloadRequest, opts ...grpc.CallOption) (*AskForDownloadResponse, error)
-	DownloadFile(ctx context.Context, in *DownloadFileRequest, opts ...grpc.CallOption) (*DownloadFileResponse, error)
 	// The client should request from the master to upload a file
 	UploadRequest(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*UploadResponse, error)
 	// Check if the data node is alive
 	HeartbeatUpdate(ctx context.Context, in *HeartbeatUpdateRequest, opts ...grpc.CallOption) (*HeartbeatUpdateResponse, error)
+	// The client should request from the master to download a file
+	DownloadRequest(ctx context.Context, in *DownloadFileRequest, opts ...grpc.CallOption) (*DownloadFileResponse, error)
 }
 
 type masterNodeClient struct {
@@ -79,15 +80,6 @@ func (c *masterNodeClient) AskForDownload(ctx context.Context, in *AskForDownloa
 	return out, nil
 }
 
-func (c *masterNodeClient) DownloadFile(ctx context.Context, in *DownloadFileRequest, opts ...grpc.CallOption) (*DownloadFileResponse, error) {
-	out := new(DownloadFileResponse)
-	err := c.cc.Invoke(ctx, MasterNode_DownloadFile_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *masterNodeClient) UploadRequest(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*UploadResponse, error) {
 	out := new(UploadResponse)
 	err := c.cc.Invoke(ctx, MasterNode_UploadRequest_FullMethodName, in, out, opts...)
@@ -106,6 +98,15 @@ func (c *masterNodeClient) HeartbeatUpdate(ctx context.Context, in *HeartbeatUpd
 	return out, nil
 }
 
+func (c *masterNodeClient) DownloadRequest(ctx context.Context, in *DownloadFileRequest, opts ...grpc.CallOption) (*DownloadFileResponse, error) {
+	out := new(DownloadFileResponse)
+	err := c.cc.Invoke(ctx, MasterNode_DownloadRequest_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MasterNodeServer is the server API for MasterNode service.
 // All implementations must embed UnimplementedMasterNodeServer
 // for forward compatibility
@@ -116,11 +117,12 @@ type MasterNodeServer interface {
 	ReceiveFileList(context.Context, *ReceiveFileListRequest) (*ReceiveFileListResponse, error)
 	// Downloading sequence (from master to client)
 	AskForDownload(context.Context, *AskForDownloadRequest) (*AskForDownloadResponse, error)
-	DownloadFile(context.Context, *DownloadFileRequest) (*DownloadFileResponse, error)
 	// The client should request from the master to upload a file
 	UploadRequest(context.Context, *Empty) (*UploadResponse, error)
 	// Check if the data node is alive
 	HeartbeatUpdate(context.Context, *HeartbeatUpdateRequest) (*HeartbeatUpdateResponse, error)
+	// The client should request from the master to download a file
+	DownloadRequest(context.Context, *DownloadFileRequest) (*DownloadFileResponse, error)
 	mustEmbedUnimplementedMasterNodeServer()
 }
 
@@ -137,14 +139,14 @@ func (UnimplementedMasterNodeServer) ReceiveFileList(context.Context, *ReceiveFi
 func (UnimplementedMasterNodeServer) AskForDownload(context.Context, *AskForDownloadRequest) (*AskForDownloadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AskForDownload not implemented")
 }
-func (UnimplementedMasterNodeServer) DownloadFile(context.Context, *DownloadFileRequest) (*DownloadFileResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DownloadFile not implemented")
-}
 func (UnimplementedMasterNodeServer) UploadRequest(context.Context, *Empty) (*UploadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UploadRequest not implemented")
 }
 func (UnimplementedMasterNodeServer) HeartbeatUpdate(context.Context, *HeartbeatUpdateRequest) (*HeartbeatUpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HeartbeatUpdate not implemented")
+}
+func (UnimplementedMasterNodeServer) DownloadRequest(context.Context, *DownloadFileRequest) (*DownloadFileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DownloadRequest not implemented")
 }
 func (UnimplementedMasterNodeServer) mustEmbedUnimplementedMasterNodeServer() {}
 
@@ -213,24 +215,6 @@ func _MasterNode_AskForDownload_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterNode_DownloadFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DownloadFileRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MasterNodeServer).DownloadFile(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MasterNode_DownloadFile_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterNodeServer).DownloadFile(ctx, req.(*DownloadFileRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _MasterNode_UploadRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Empty)
 	if err := dec(in); err != nil {
@@ -267,6 +251,24 @@ func _MasterNode_HeartbeatUpdate_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MasterNode_DownloadRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DownloadFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MasterNodeServer).DownloadRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MasterNode_DownloadRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MasterNodeServer).DownloadRequest(ctx, req.(*DownloadFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MasterNode_ServiceDesc is the grpc.ServiceDesc for MasterNode service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -287,16 +289,16 @@ var MasterNode_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _MasterNode_AskForDownload_Handler,
 		},
 		{
-			MethodName: "DownloadFile",
-			Handler:    _MasterNode_DownloadFile_Handler,
-		},
-		{
 			MethodName: "UploadRequest",
 			Handler:    _MasterNode_UploadRequest_Handler,
 		},
 		{
 			MethodName: "HeartbeatUpdate",
 			Handler:    _MasterNode_HeartbeatUpdate_Handler,
+		},
+		{
+			MethodName: "DownloadRequest",
+			Handler:    _MasterNode_DownloadRequest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
