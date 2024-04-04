@@ -28,20 +28,20 @@ func GenerateID() int {
 func FindMP4Files(dir string) ([]string, error) {
 	var mp4Files []string
 
-	// Walk through the directory and its subdirectories
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		// Check if the file has a .mp4 extension
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".mp4") {
-			mp4Files = append(mp4Files, path)
-		}
-		return nil
-	})
-
+	// Open the directory
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
+	}
+
+	// Iterate through the files in the directory
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".mp4") {
+			// Extract the filename without the directory path
+			filename := filepath.Base(file.Name())
+			// Append the filename to the mp4Files slice
+			mp4Files = append(mp4Files, filename)
+		}
 	}
 
 	return mp4Files, nil
@@ -69,4 +69,17 @@ func SaveFile(directory, filename string, data []byte) error {
 
     fmt.Printf("File saved as %s\n", fullPath)
     return nil
+}
+func OpenFileFromDirectory(dir string, filename string) (*os.File, error) {
+	// Change directory to dir
+	errDir := os.Chdir(dir)
+	if errDir != nil {
+		fmt.Println("Error changing directory:", errDir)
+		return nil, errDir
+	}
+
+	// Open the file
+	file, err := os.Open(filename)
+
+	return file, err
 }

@@ -22,7 +22,6 @@ const (
 	MasterNode_RegisterDataNode_FullMethodName    = "/master_node.MasterNode/RegisterDataNode"
 	MasterNode_ReceiveFileList_FullMethodName     = "/master_node.MasterNode/ReceiveFileList"
 	MasterNode_AskForDownload_FullMethodName      = "/master_node.MasterNode/AskForDownload"
-	MasterNode_DownloadFile_FullMethodName        = "/master_node.MasterNode/DownloadFile"
 	MasterNode_AskForUploadRequest_FullMethodName = "/master_node.MasterNode/AskForUploadRequest"
 	MasterNode_HeartbeatUpdate_FullMethodName     = "/master_node.MasterNode/HeartbeatUpdate"
 )
@@ -37,7 +36,6 @@ type MasterNodeClient interface {
 	ReceiveFileList(ctx context.Context, in *ReceiveFileListRequest, opts ...grpc.CallOption) (*ReceiveFileListResponse, error)
 	// Downloading sequence (from master to client)
 	AskForDownload(ctx context.Context, in *AskForDownloadRequest, opts ...grpc.CallOption) (*AskForDownloadResponse, error)
-	DownloadFile(ctx context.Context, in *DownloadFileRequest, opts ...grpc.CallOption) (*DownloadFileResponse, error)
 	// The client should request from the master to upload a file
 	AskForUploadRequest(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*AskForUploadResponse, error)
 	// Check if the data node is alive
@@ -79,15 +77,6 @@ func (c *masterNodeClient) AskForDownload(ctx context.Context, in *AskForDownloa
 	return out, nil
 }
 
-func (c *masterNodeClient) DownloadFile(ctx context.Context, in *DownloadFileRequest, opts ...grpc.CallOption) (*DownloadFileResponse, error) {
-	out := new(DownloadFileResponse)
-	err := c.cc.Invoke(ctx, MasterNode_DownloadFile_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *masterNodeClient) AskForUploadRequest(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*AskForUploadResponse, error) {
 	out := new(AskForUploadResponse)
 	err := c.cc.Invoke(ctx, MasterNode_AskForUploadRequest_FullMethodName, in, out, opts...)
@@ -116,7 +105,6 @@ type MasterNodeServer interface {
 	ReceiveFileList(context.Context, *ReceiveFileListRequest) (*ReceiveFileListResponse, error)
 	// Downloading sequence (from master to client)
 	AskForDownload(context.Context, *AskForDownloadRequest) (*AskForDownloadResponse, error)
-	DownloadFile(context.Context, *DownloadFileRequest) (*DownloadFileResponse, error)
 	// The client should request from the master to upload a file
 	AskForUploadRequest(context.Context, *Empty) (*AskForUploadResponse, error)
 	// Check if the data node is alive
@@ -136,9 +124,6 @@ func (UnimplementedMasterNodeServer) ReceiveFileList(context.Context, *ReceiveFi
 }
 func (UnimplementedMasterNodeServer) AskForDownload(context.Context, *AskForDownloadRequest) (*AskForDownloadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AskForDownload not implemented")
-}
-func (UnimplementedMasterNodeServer) DownloadFile(context.Context, *DownloadFileRequest) (*DownloadFileResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DownloadFile not implemented")
 }
 func (UnimplementedMasterNodeServer) AskForUploadRequest(context.Context, *Empty) (*AskForUploadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AskForUploadRequest not implemented")
@@ -213,24 +198,6 @@ func _MasterNode_AskForDownload_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MasterNode_DownloadFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DownloadFileRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MasterNodeServer).DownloadFile(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MasterNode_DownloadFile_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MasterNodeServer).DownloadFile(ctx, req.(*DownloadFileRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _MasterNode_AskForUploadRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Empty)
 	if err := dec(in); err != nil {
@@ -285,10 +252,6 @@ var MasterNode_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AskForDownload",
 			Handler:    _MasterNode_AskForDownload_Handler,
-		},
-		{
-			MethodName: "DownloadFile",
-			Handler:    _MasterNode_DownloadFile_Handler,
 		},
 		{
 			MethodName: "AskForUploadRequest",

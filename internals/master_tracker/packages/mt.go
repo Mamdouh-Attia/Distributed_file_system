@@ -2,7 +2,7 @@ package mt
 
 import (
 	dk "Distributed_file_system/internals/data_keeper_node/packages"
-	mt "Distributed_file_system/internals/pb/master_node"
+	pb_m "Distributed_file_system/internals/pb/master_node"
 	utils "Distributed_file_system/internals/utils"
 	"context"
 	"log"
@@ -20,7 +20,7 @@ type Record struct {
 
 // Master represents the master data structure containing records
 type Master struct {
-	mt.UnimplementedMasterNodeServer
+	pb_m.UnimplementedMasterNodeServer
 	Records         []Record // List of records in the master
 	DataKeeperNodes []dk.DataKeeperNode
 	//map of datakeeper node id to timer to keep track of the heartbeat
@@ -97,7 +97,7 @@ func (m *Master) KillDataNode(dataKeeperNodeId int32) {
 }
 
 // grpc function to handle the request from data node to register itself in the master
-func (m *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeRequest) (*mt.RegisterDataNodeResponse, error) {
+func (m *Master) RegisterDataNode(ctx context.Context, req *pb_m.RegisterDataNodeRequest) (*pb_m.RegisterDataNodeResponse, error) {
 	//generate a new data node id
 	id := utils.GenerateID()
 	//TODO : if duplicate id, generate a new one
@@ -106,15 +106,17 @@ func (m *Master) RegisterDataNode(ctx context.Context, req *mt.RegisterDataNodeR
 	m.DataKeeperNodes = append(m.DataKeeperNodes, *dk.NewDataKeeperNode(int(id), req.DataKeeper.Ip, req.DataKeeper.Port, []string{}))
 	//print the data node
 	log.Printf("DataKeeperNode: %v", m.DataKeeperNodes)
+	// register file records in the master
+
 	//start the heartbeat timer for this data node
 	m.Heartbeats[int32(id)] = time.AfterFunc(5*time.Second, func() {
 		m.KillDataNode(int32(id))
 	})
-	return &mt.RegisterDataNodeResponse{Success: true, NodeID: int32(id)}, nil
+	return &pb_m.RegisterDataNodeResponse{Success: true, NodeID: int32(id)}, nil
 }
 
 // grpc function to update the master with the new status of the data node
-func (m *Master) HeartbeatUpdate(ctx context.Context, dk *mt.HeartbeatUpdateRequest) (*mt.HeartbeatUpdateResponse, error) {
+func (m *Master) HeartbeatUpdate(ctx context.Context, dk *pb_m.HeartbeatUpdateRequest) (*pb_m.HeartbeatUpdateResponse, error) {
 
 	log.Printf("HeartbeatUpdateRequest: ")
 	// get all records with the same datakeeper node id
@@ -129,37 +131,42 @@ func (m *Master) HeartbeatUpdate(ctx context.Context, dk *mt.HeartbeatUpdateRequ
 	//log the data node is alive
 	log.Printf("DataKeeperNode: %v is alive", dk.NodeID)
 
-	return &mt.HeartbeatUpdateResponse{Success: true}, nil
+	return &pb_m.HeartbeatUpdateResponse{Success: true}, nil
 }
 
 
 // grpc function to handle the request from client to download a file
-func (m *Master) AskForDownload(ctx context.Context, file *mt.AskForDownloadRequest) (*mt.AskForDownloadResponse, error) {
+func (m *Master) AskForDownload(ctx context.Context, file *pb_m.AskForDownloadRequest) (*pb_m.AskForDownloadResponse, error) {
 
-	// get all records with the same filename
-	records := m.GetRecordsByFilename(file.FileName)
+	//print all records
+	log.Printf("Master: %v", m.Records)
+	log.Printf("Request for file: %v", file.FileName)
+
+	// get all records with the same fileReqname
+	records := m.GetRecordsByFilename (file.FileName)
 
 	// if the file is not in the master, return an error
 	if len(records) == 0 {
 
 		// return error, that the file does not exist
-		return &mt.AskForDownloadResponse{}, nil
+		return &pb_m.AskForDownloadResponse{}, nil
 	}
 
-	// get all Data nodes that has this file and return the port and Ip of each one in a map
-	FileLocations := make(map[string]string)
+	// return list of DataKeeper struct used in response
+	MachinesList := make([]*pb_m.DataKeeper, 0)
 	for _, record := range records {
 		dataKeeperNode := m.GetDataKeeperNodeById(record.DataKeeperNodeID)
-
-		FileLocations[dataKeeperNode.Port] = dataKeeperNode.IP
+		MachinesList = append(MachinesList, &pb_m.DataKeeper{Id: int32(dataKeeperNode.ID), Ip: dataKeeperNode.IP, Port: dataKeeperNode.Port})
 	}
 
+	log.Printf("Master: Found the file %v in the following datakeeper nodes: %v", file.FileName, MachinesList)
+
 	// return the datakeeper nodes to the client
-	return &mt.AskForDownloadResponse{FileLocations: FileLocations}, nil
+	return &pb_m.AskForDownloadResponse{DataKeepers: MachinesList}, nil
 }
 
 // grpc function to recieve Files list from data node
-func (m *Master) ReceiveFileList(ctx context.Context, filesRequest *mt.ReceiveFileListRequest) (*mt.ReceiveFileListResponse, error) {
+func (m *Master) ReceiveFileList(ctx context.Context, filesRequest *pb_m.ReceiveFileListRequest) (*pb_m.ReceiveFileListResponse, error) {
 
 	// get the data node keeper by this id
 	dataKeeperNode := m.GetDataKeeperNodeById(int(filesRequest.NodeID))
@@ -172,6 +179,10 @@ func (m *Master) ReceiveFileList(ctx context.Context, filesRequest *mt.ReceiveFi
 	for i, node := range m.DataKeeperNodes {
 		if node.ID == int(filesRequest.NodeID) {
 			m.DataKeeperNodes[i] = dataKeeperNode
+			// update the records
+			for _, file := range filesRequest.Files {
+				m.AddRecord(Record{FileName: file, FilePath: file, alive: true, DataKeeperNodeID: int(filesRequest.NodeID)})
+			}
 		}
 	}
 
@@ -179,11 +190,11 @@ func (m *Master) ReceiveFileList(ctx context.Context, filesRequest *mt.ReceiveFi
 	log.Printf("DataKeeperNode: %v files: %v", dataKeeperNode, dataKeeperNode.Files)
 
 	// return success
-	return &mt.ReceiveFileListResponse{Success: true}, nil
+	return &pb_m.ReceiveFileListResponse{Success: true}, nil
 }
 
 // grpc function to handle the request from client to upload a file
-func (m* Master) AskForUpload(ctx context.Context, req *mt.Empty) (*mt.AskForUploadResponse, error) {
+func (m* Master) AskForUpload(ctx context.Context, req *pb_m.Empty) (*pb_m.AskForUploadResponse, error) {
 	// Choose a random datakeeper node to store the file
 	dataKeeperNodeID := m.Records[rand.Intn(len(m.Records))].DataKeeperNodeID
 
@@ -191,5 +202,5 @@ func (m* Master) AskForUpload(ctx context.Context, req *mt.Empty) (*mt.AskForUpl
 	dataKeeperNode := m.GetDataKeeperNodeById(dataKeeperNodeID)
 
 	// return the datakeeper node to the client
-	return &mt.AskForUploadResponse{Port: dataKeeperNode.Port}, nil
+	return &pb_m.AskForUploadResponse{Port: dataKeeperNode.Port}, nil
 }

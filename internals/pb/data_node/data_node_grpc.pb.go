@@ -4,7 +4,7 @@
 // - protoc             v3.12.4
 // source: data_node.proto
 
-package data_node_keeper
+package data_node
 
 import (
 	context "context"
@@ -20,6 +20,8 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	DataNode_ReceiveUploadedFile_FullMethodName = "/data_node.DataNode/ReceiveUploadedFile"
+	DataNode_GetFileSize_FullMethodName         = "/data_node.DataNode/GetFileSize"
+	DataNode_DownloadFile_FullMethodName        = "/data_node.DataNode/DownloadFile"
 )
 
 // DataNodeClient is the client API for DataNode service.
@@ -28,6 +30,10 @@ const (
 type DataNodeClient interface {
 	// Receive the file from the client
 	ReceiveUploadedFile(ctx context.Context, in *ReceiveUploadedFileRequest, opts ...grpc.CallOption) (*ReceiveUploadedFileResponse, error)
+	// RPC for getting the file size
+	GetFileSize(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (*FileResponse, error)
+	// RPC for downloading a file
+	DownloadFile(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (DataNode_DownloadFileClient, error)
 }
 
 type dataNodeClient struct {
@@ -47,12 +53,57 @@ func (c *dataNodeClient) ReceiveUploadedFile(ctx context.Context, in *ReceiveUpl
 	return out, nil
 }
 
+func (c *dataNodeClient) GetFileSize(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (*FileResponse, error) {
+	out := new(FileResponse)
+	err := c.cc.Invoke(ctx, DataNode_GetFileSize_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataNodeClient) DownloadFile(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (DataNode_DownloadFileClient, error) {
+	stream, err := c.cc.NewStream(ctx, &DataNode_ServiceDesc.Streams[0], DataNode_DownloadFile_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dataNodeDownloadFileClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DataNode_DownloadFileClient interface {
+	Recv() (*FileChunk, error)
+	grpc.ClientStream
+}
+
+type dataNodeDownloadFileClient struct {
+	grpc.ClientStream
+}
+
+func (x *dataNodeDownloadFileClient) Recv() (*FileChunk, error) {
+	m := new(FileChunk)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // DataNodeServer is the server API for DataNode service.
 // All implementations must embed UnimplementedDataNodeServer
 // for forward compatibility
 type DataNodeServer interface {
 	// Receive the file from the client
 	ReceiveUploadedFile(context.Context, *ReceiveUploadedFileRequest) (*ReceiveUploadedFileResponse, error)
+	// RPC for getting the file size
+	GetFileSize(context.Context, *FileRequest) (*FileResponse, error)
+	// RPC for downloading a file
+	DownloadFile(*FileRequest, DataNode_DownloadFileServer) error
 	mustEmbedUnimplementedDataNodeServer()
 }
 
@@ -62,6 +113,12 @@ type UnimplementedDataNodeServer struct {
 
 func (UnimplementedDataNodeServer) ReceiveUploadedFile(context.Context, *ReceiveUploadedFileRequest) (*ReceiveUploadedFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReceiveUploadedFile not implemented")
+}
+func (UnimplementedDataNodeServer) GetFileSize(context.Context, *FileRequest) (*FileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFileSize not implemented")
+}
+func (UnimplementedDataNodeServer) DownloadFile(*FileRequest, DataNode_DownloadFileServer) error {
+	return status.Errorf(codes.Unimplemented, "method DownloadFile not implemented")
 }
 func (UnimplementedDataNodeServer) mustEmbedUnimplementedDataNodeServer() {}
 
@@ -94,6 +151,45 @@ func _DataNode_ReceiveUploadedFile_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DataNode_GetFileSize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataNodeServer).GetFileSize(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DataNode_GetFileSize_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataNodeServer).GetFileSize(ctx, req.(*FileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataNode_DownloadFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FileRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DataNodeServer).DownloadFile(m, &dataNodeDownloadFileServer{stream})
+}
+
+type DataNode_DownloadFileServer interface {
+	Send(*FileChunk) error
+	grpc.ServerStream
+}
+
+type dataNodeDownloadFileServer struct {
+	grpc.ServerStream
+}
+
+func (x *dataNodeDownloadFileServer) Send(m *FileChunk) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // DataNode_ServiceDesc is the grpc.ServiceDesc for DataNode service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -105,7 +201,17 @@ var DataNode_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ReceiveUploadedFile",
 			Handler:    _DataNode_ReceiveUploadedFile_Handler,
 		},
+		{
+			MethodName: "GetFileSize",
+			Handler:    _DataNode_GetFileSize_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "DownloadFile",
+			Handler:       _DataNode_DownloadFile_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "data_node.proto",
 }
