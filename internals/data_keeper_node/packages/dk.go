@@ -3,14 +3,16 @@ package dk
 import (
 	pb "Distributed_file_system/internals/pb/data_node"
 	"context"
+	"os"
 
-	// "errors"
 	"fmt"
 	"io"
 	"log"
-	"os"
 )
 
+const (
+	dataDir = "./data/"
+)
 // DataKeeperNode represents a node responsible for keeping track of files.
 type DataKeeperNode struct {
 	pb.UnimplementedDataNodeServer
@@ -45,64 +47,12 @@ func (n *DataKeeperNode) RemoveFile(filename string) {
 	}
 }
 
-// // gRPC function to get file size
-// func (n *DataKeeperNode) GetFileSize(ctx context.Context, req *pb.FileRequest) (*pb.FileResponse, error) {
-// 	log.Printf("Received request to get file size for file: %s", req.FileName)
-
-// 	// Open the requested file
-// 	file, err := os.Open(".\\" + req.FileName)
-// 	print("file", file)
-// 	if err != nil {
-// 		return nil, errors.New("error opening file")
-// 	}
-// 	print("file opened")
-// 	defer file.Close()
-
-// 	// Read file contents
-// 	fileInfo, err := file.Stat()
-// 	if err != nil {
-// 		return nil, errors.New("error reading file")
-// 	}
-
-// 	// Send file size to client
-// 	return &pb.FileResponse{FileName: req.FileName, FileSize: int64(fileInfo.Size())}, nil
-// }
-
-// // grpc function to download the file from the datakeeper node to the client
-// func (n *DataKeeperNode) DownloadFile(req *pb.FileRequest, stream pb.DataNode_DownloadFileServer) error {
-// 	// Open the requested file
-// 	file, err := os.Open("data/" + req.FileName)
-// 	if err != nil {
-// 		return errors.New("error opening file")
-// 	}
-// 	defer file.Close()
-
-// 	// Buffer to read file contents
-// 	buffer := make([]byte, 1024)
-
-// 	// Read file contents and send to client
-// 	for {
-// 		bytesRead, err := file.Read(buffer)
-// 		if err != nil {
-// 			if err == io.EOF {
-// 				break
-// 			}
-// 			return errors.New("error reading file")
-// 		}
-// 		// Send file chunk to client
-// 		if err := stream.Send(&pb.FileChunk{Data: buffer[:bytesRead]}); err != nil {
-// 			return errors.New("error sending file chunk")
-// 		}
-// 	}
-
-// 	return nil
-// }
-
+// GetFiles returns the list of files stored on the node.
 func (n *DataKeeperNode) GetFileSize(ctx context.Context, req *pb.FileRequest) (*pb.FileResponse, error) {
 	log.Printf("Received request to get file size for file: %s", req.FileName)
 
-	// Open the requested file
-	file, err := os.Open(".\\" + req.FileName)
+	// Open the file
+	file, err := os.Open(dataDir+req.FileName)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %v", err)
 	}
@@ -119,8 +69,9 @@ func (n *DataKeeperNode) GetFileSize(ctx context.Context, req *pb.FileRequest) (
 }
 
 func (n *DataKeeperNode) DownloadFile(req *pb.FileRequest, stream pb.DataNode_DownloadFileServer) error {
-	// Open the requested file
-	file, err := os.Open(req.FileName)
+
+	file, err := os.Open(dataDir+req.FileName)
+
 	if err != nil {
 		return fmt.Errorf("error opening file: %v", err)
 	}
