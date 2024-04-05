@@ -16,18 +16,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-
-
 type File struct {
-	FileName string
-	FilePath string
+	FileName    string
+	FilePath    string
 	FileContent []byte
 }
-
 
 const (
 	defaultAdress = "localhost:8080"
 )
+
 // DataKeeperNode represents a node responsible for keeping track of files.
 type DataKeeperNode struct {
 	pb_d.UnimplementedDataNodeServer
@@ -52,10 +50,10 @@ func (n *DataKeeperNode) AddFile(file string) {
 	n.Files = append(n.Files, file)
 }
 
-func (n* DataKeeperNode) ConnectToServer(address string) (*grpc.ClientConn, error ) {
+func (n *DataKeeperNode) ConnectToServer(address string) (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	return conn, err;
+	return conn, err
 }
 
 // RemoveFile removes a file from the list of files stored on the node.
@@ -68,19 +66,18 @@ func (n *DataKeeperNode) RemoveFile(filename string) {
 	}
 }
 
-func (n* DataKeeperNode) GetFileByName(filename string) string {
+func (n *DataKeeperNode) GetFileByName(filename string) string {
 	for _, file := range n.Files {
 		if file == filename {
 			return file
-			
+
 		}
 	}
 	return ""
 }
 
-
-// grpc function to receive the uploaded file from the client 
-func (n* DataKeeperNode)  UploadFile (ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error)  {
+// grpc function to receive the uploaded file from the client
+func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error) {
 
 	fileName := req.FileName
 	fileContent := req.FileContent
@@ -91,7 +88,7 @@ func (n* DataKeeperNode)  UploadFile (ctx context.Context, req *pb_d.UploadFileR
 		fmt.Printf("error in saving the file locally, %v", err)
 		return &pb_d.UploadFileResponse{Success: false}, err
 	}
-	
+
 	n.AddFile(fileName)
 	connMaster, errConn := n.ConnectToServer(defaultAdress)
 
@@ -104,7 +101,7 @@ func (n* DataKeeperNode)  UploadFile (ctx context.Context, req *pb_d.UploadFileR
 
 	masterClient := pb_m.NewMasterNodeClient(connMaster)
 
-   _, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}})
+	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}})
 
 	if notificationErr != nil {
 		fmt.Printf("Failed to notify the master: %v\n", notificationErr)
@@ -164,3 +161,9 @@ func (n *DataKeeperNode) DownloadFile(req *pb_d.FileRequest, stream pb_d.DataNod
 
 	return nil
 }
+
+//TODO: Implement the following functions
+//////  Replication Handling //////
+// func (n *DataKeeperNode) ReplicateFileSend
+
+// func (n *DataKeeperNode) ReplicateFileReceive
