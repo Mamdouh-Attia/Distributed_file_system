@@ -84,11 +84,11 @@ func (n* DataKeeperNode)  UploadFile (ctx context.Context, req *pb_d.UploadFileR
 
 	fileName := req.FileName
 	fileContent := req.FileContent
-	fmt.Print("Received request to upload file: %s\n", fileName)
+	fmt.Printf("Received request to upload file: %s\n", fileName)
 	err := utils.SaveFile(fileName, []byte(fileContent))
 
 	if err != nil {
-		fmt.Print("error in saving the file locally, %v", err)
+		fmt.Printf("error in saving the file locally, %v", err)
 		return &pb_d.UploadFileResponse{Success: false}, err
 	}
 	
@@ -96,7 +96,7 @@ func (n* DataKeeperNode)  UploadFile (ctx context.Context, req *pb_d.UploadFileR
 	connMaster, errConn := n.ConnectToServer(defaultAdress)
 
 	if errConn != nil {
-		fmt.Print("error connecting to the master: %v\n", errConn)
+		fmt.Printf("error connecting to the master: %v\n", errConn)
 		return &pb_d.UploadFileResponse{Success: false}, errConn
 	}
 

@@ -35,7 +35,7 @@ func (c* Client) AskForUpload(master pb_m.MasterNodeClient) (string, error) {
 		fmt.Print(uploadPort)
 
 	if err != nil {
-		fmt.Print("Error in getting the upload response %v\n", err)
+		fmt.Printf("Error in getting the upload response %v\n", err)
 		return "", err
 	}
 
