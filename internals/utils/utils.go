@@ -25,11 +25,11 @@ func GenerateID() int {
 }
 
 // FindMP4Files finds all the .mp4 files in the specified directory and its subdirectories
-func FindMP4Files(dir string) ([]string, error) {
+func FindMP4Files() ([]string, error) {
 	var mp4Files []string
 
-	// Open the directory
-	files, err := os.ReadDir(dir)
+	// Open the current directory
+	files, err := os.ReadDir("./")
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +47,27 @@ func FindMP4Files(dir string) ([]string, error) {
 	return mp4Files, nil
 }
 
+
+
+func SaveFile(filename string, data []byte) error {
+
+    file, err := os.Create(filename)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    _, err = file.Write(data)
+    if err != nil {
+        return err
+    }
+
+    fmt.Printf("File saved as %s\n", filename)
+    return nil
+}
 func OpenFileFromDirectory(dir string, filename string) (*os.File, error) {
 	// Change directory to dir
+
 	errDir := os.Chdir(dir)
 	if errDir != nil {
 		fmt.Println("Error changing directory:", errDir)

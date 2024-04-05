@@ -29,9 +29,11 @@ func main() {
 	fmt.Printf("Connected to server: %v\n", "localhost:8080")
 	
 	masterClient := mt.NewMasterNodeClient(conn)
-	downloadErr := Client.DownloadFile("2MB.mp4", masterClient)
 
-	if downloadErr != nil {
-		fmt.Printf("Error while Downloading the file: %v\n", downloadErr)
+	fmt.Print("Test 0\n")
+	uploadErr := Client.UploadFileToServer(masterClient, "2MB.mp4")
+
+	if uploadErr != nil {
+		fmt.Printf("Error while uploading the file: %v\n", uploadErr)
 	}
 }

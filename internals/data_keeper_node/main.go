@@ -48,12 +48,13 @@ func main() {
 	node.ID = int(regResult.NodeID)
 
 	// 2. scan the current directory for files
-	files, err := utils.FindMP4Files("./data")
+	files, err := utils.FindMP4Files()
 	if err != nil {
 		log.Fatalf("Failed to find mp4 files: %v", err)
 	}
 	//print the files
 	log.Printf("Files found: %v", files)
+	
 	// 3. send the file list to the server
 	updateFilesListResult, err := client.ReceiveFileList(context.Background(), &mt.ReceiveFileListRequest{NodeID: int32(node.ID), Files: files})
 	if err != nil {

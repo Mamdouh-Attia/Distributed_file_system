@@ -10,6 +10,15 @@ message FileRequest {
     string fileName = 1;
 }
 
+message UploadFileRequest {
+    bytes fileContent = 1;
+    string fileName = 2;
+}
+
+message UploadFileResponse {
+    bool success = 1;
+}
+
 // Response for downloading a file
 message FileResponse {
     // Content of the file
@@ -23,10 +32,15 @@ message FileChunk {
     bytes data = 1;
 }
 
-// Service for DataNode
 service DataNode {
+    
+    // Receive the file from the client
+    rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+
+
     // RPC for getting the file size
     rpc GetFileSize(FileRequest) returns (FileResponse);
+    
     // RPC for downloading a file
     rpc DownloadFile(FileRequest) returns (stream FileChunk);
 }

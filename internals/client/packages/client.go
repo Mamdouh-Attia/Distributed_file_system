@@ -1,14 +1,15 @@
 package client
 
 import (
-	pb_d "Distributed_file_system/internals/pb/data_node"
-	pb_m "Distributed_file_system/internals/pb/master_node"
 	"io"
 	"log"
 	"os"
 
 	"context"
 	"fmt"
+
+	pb_d "Distributed_file_system/internals/pb/data_node"
+	pb_m "Distributed_file_system/internals/pb/master_node"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -28,10 +29,89 @@ func (c* Client) ConnectToServer(address string) (*grpc.ClientConn, error ) {
 	return conn, err;
 }
 
-func (c* Client) DownloadFile(filename string, masterClient pb_m.MasterNodeClient) error {
+func (c* Client) AskForUpload(master pb_m.MasterNodeClient) (string, error) {
+	
+  uploadPort, err := master.AskForUpload(context.Background(), &pb_m.Empty{});
+		fmt.Print(uploadPort)
+
+	if err != nil {
+		fmt.Printf("Error in getting the upload response %v\n", err)
+		return "", err
+	}
+
+  return uploadPort.Port, err
+}
+
+func (c* Client) UploadFileToServer(master pb_m.MasterNodeClient, filename string) error {
+
+	uploadPort, errGettingPort := c.AskForUpload(master);
+
+	if errGettingPort != nil {
+		fmt.Printf("Failed to get the upload port: %v\n", errGettingPort)
+		return errGettingPort
+	}
+
+
+	// connect to the datakeeper node
+	dataConn, errDataConn := c.ConnectToServer("localhost:"+uploadPort)
+
+	if errDataConn != nil {
+		fmt.Printf("Failed to connect to server: %v", errDataConn)
+		return errDataConn
+	}
+
+	defer dataConn.Close()
+
+	// create a client
+	dataNodeClient := pb_d.NewDataNodeClient(dataConn)
+	log.Printf("Connected to datakeeper node: %v\n", uploadPort)
+
+
+	// open the file
+	file, errOpenFile := os.Open(filename)
+
+	if errOpenFile != nil {
+		fmt.Printf("Failed to open the file: %v\n", errOpenFile)
+		return errOpenFile
+	}
+
+	defer file.Close()
+
+	// Buffer to read file contents
+	buffer := make([]byte, 1024)
+
+
+	// read the file contents
+	for {
+		n, err := file.Read(buffer)
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			fmt.Printf("Failed to read the file: %v\n", err)
+			return err
+		}
+
+		// send the file contents to the server
+		_, errSendFile := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileContent: buffer[:n], FileName: filename})
+
+		if errSendFile != nil {
+			fmt.Printf("Failed to send the file: %v\n", errSendFile)
+			return errSendFile
+		}
+
+	}
+
+	return nil;
+}
+
+
+func (c* Client) DownloadFile(masterClient pb_m.MasterNodeClient, filename string) error {
 	
 	//1. the client should send a request to the master to get the datakeeper node that has the file
-	machines, errDownload := masterClient.DownloadRequest(context.Background(), &pb_m.DownloadFileRequest{FileName: filename})
+	machines, errDownload := masterClient.AskForDownload(context.Background(), &pb_m.AskForDownloadRequest{FileName: filename})
 
 	if errDownload != nil || len(machines.DataKeepers) == 0 {
 		fmt.Printf("Failed to get the datakeeper node: %v\n", errDownload)
@@ -89,10 +169,6 @@ func (c* Client) DownloadFile(filename string, masterClient pb_m.MasterNodeClien
 			os.Chdir("data")
 
 			// TODO: Check while there exists another file with that file name append the word copy to the begining of the name
-			
-
-
-
 
 			file, errCreateFile := os.Create(filename)
 			if errCreateFile != nil {

@@ -6,6 +6,13 @@ package master_node;
 
 message Empty {}
 
+message Record {
+    string fileName = 1;
+	string filePath=2;
+	bool alive = 3;;
+	int32 dataKeeperNodeID = 4;
+}
+
 message DataKeeper {
     int32 id = 1;
     string ip = 2;
@@ -39,14 +46,16 @@ message ReceiveFileListResponse {
 
 
 message AskForDownloadResponse {
-    map<string, string> fileLocations = 1;
+    repeated DataKeeper dataKeepers = 1;
 }
 
 message AskForDownloadRequest {
     string fileName = 1;
 }
 
-message UploadResponse { 
+
+
+message AskForUploadResponse { 
     string port = 1;
 }
 
@@ -58,13 +67,12 @@ message HeartbeatUpdateResponse {
     bool success = 1;
 }
 
-message DownloadFileRequest {
-    string fileName = 1;
+message UploadNotificationRequest {
+    Record newRecord = 1;
 }
 
-//The master should respond with a list of machines IP addresses and ports that have the file requested
-message DownloadFileResponse {
-    repeated DataKeeper dataKeepers = 1;
+message UploadNotificationResponse {
+    bool success = 1;
 }
 
 service MasterNode {
@@ -79,11 +87,10 @@ service MasterNode {
     rpc AskForDownload(AskForDownloadRequest) returns (AskForDownloadResponse);
 
     // The client should request from the master to upload a file
-    rpc UploadRequest(Empty) returns (UploadResponse);
+    rpc AskForUpload(Empty) returns (AskForUploadResponse);
+    rpc UploadNotification(UploadNotificationRequest) returns (UploadNotificationResponse);
 
     // Check if the data node is alive
     rpc HeartbeatUpdate(HeartbeatUpdateRequest) returns (HeartbeatUpdateResponse);
 
-    // The client should request from the master to download a file
-    rpc DownloadRequest(DownloadFileRequest) returns (DownloadFileResponse);
 }
