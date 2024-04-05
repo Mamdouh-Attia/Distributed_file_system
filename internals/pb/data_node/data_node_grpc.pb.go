@@ -19,9 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	DataNode_ReceiveUploadedFile_FullMethodName = "/data_node.DataNode/ReceiveUploadedFile"
-	DataNode_GetFileSize_FullMethodName         = "/data_node.DataNode/GetFileSize"
-	DataNode_DownloadFile_FullMethodName        = "/data_node.DataNode/DownloadFile"
+	DataNode_UploadFile_FullMethodName   = "/data_node.DataNode/UploadFile"
+	DataNode_GetFileSize_FullMethodName  = "/data_node.DataNode/GetFileSize"
+	DataNode_DownloadFile_FullMethodName = "/data_node.DataNode/DownloadFile"
 )
 
 // DataNodeClient is the client API for DataNode service.
@@ -29,7 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DataNodeClient interface {
 	// Receive the file from the client
-	ReceiveUploadedFile(ctx context.Context, in *ReceiveUploadedFileRequest, opts ...grpc.CallOption) (*ReceiveUploadedFileResponse, error)
+	UploadFile(ctx context.Context, in *UploadFileRequest, opts ...grpc.CallOption) (*UploadFileResponse, error)
 	// RPC for getting the file size
 	GetFileSize(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	// RPC for downloading a file
@@ -44,9 +44,9 @@ func NewDataNodeClient(cc grpc.ClientConnInterface) DataNodeClient {
 	return &dataNodeClient{cc}
 }
 
-func (c *dataNodeClient) ReceiveUploadedFile(ctx context.Context, in *ReceiveUploadedFileRequest, opts ...grpc.CallOption) (*ReceiveUploadedFileResponse, error) {
-	out := new(ReceiveUploadedFileResponse)
-	err := c.cc.Invoke(ctx, DataNode_ReceiveUploadedFile_FullMethodName, in, out, opts...)
+func (c *dataNodeClient) UploadFile(ctx context.Context, in *UploadFileRequest, opts ...grpc.CallOption) (*UploadFileResponse, error) {
+	out := new(UploadFileResponse)
+	err := c.cc.Invoke(ctx, DataNode_UploadFile_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (x *dataNodeDownloadFileClient) Recv() (*FileChunk, error) {
 // for forward compatibility
 type DataNodeServer interface {
 	// Receive the file from the client
-	ReceiveUploadedFile(context.Context, *ReceiveUploadedFileRequest) (*ReceiveUploadedFileResponse, error)
+	UploadFile(context.Context, *UploadFileRequest) (*UploadFileResponse, error)
 	// RPC for getting the file size
 	GetFileSize(context.Context, *FileRequest) (*FileResponse, error)
 	// RPC for downloading a file
@@ -111,8 +111,8 @@ type DataNodeServer interface {
 type UnimplementedDataNodeServer struct {
 }
 
-func (UnimplementedDataNodeServer) ReceiveUploadedFile(context.Context, *ReceiveUploadedFileRequest) (*ReceiveUploadedFileResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReceiveUploadedFile not implemented")
+func (UnimplementedDataNodeServer) UploadFile(context.Context, *UploadFileRequest) (*UploadFileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UploadFile not implemented")
 }
 func (UnimplementedDataNodeServer) GetFileSize(context.Context, *FileRequest) (*FileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFileSize not implemented")
@@ -133,20 +133,20 @@ func RegisterDataNodeServer(s grpc.ServiceRegistrar, srv DataNodeServer) {
 	s.RegisterService(&DataNode_ServiceDesc, srv)
 }
 
-func _DataNode_ReceiveUploadedFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReceiveUploadedFileRequest)
+func _DataNode_UploadFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadFileRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DataNodeServer).ReceiveUploadedFile(ctx, in)
+		return srv.(DataNodeServer).UploadFile(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DataNode_ReceiveUploadedFile_FullMethodName,
+		FullMethod: DataNode_UploadFile_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataNodeServer).ReceiveUploadedFile(ctx, req.(*ReceiveUploadedFileRequest))
+		return srv.(DataNodeServer).UploadFile(ctx, req.(*UploadFileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -198,8 +198,8 @@ var DataNode_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*DataNodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ReceiveUploadedFile",
-			Handler:    _DataNode_ReceiveUploadedFile_Handler,
+			MethodName: "UploadFile",
+			Handler:    _DataNode_UploadFile_Handler,
 		},
 		{
 			MethodName: "GetFileSize",
