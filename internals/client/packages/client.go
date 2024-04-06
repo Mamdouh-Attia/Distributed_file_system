@@ -29,22 +29,21 @@ func (c* Client) ConnectToServer(address string) (*grpc.ClientConn, error ) {
 	return conn, err;
 }
 
-func (c* Client) AskForUpload(master pb_m.MasterNodeClient) (string, error) {
+func (c* Client) AskForUpload(master pb_m.MasterNodeClient) (string, string, error) {
 	
-  uploadPort, err := master.AskForUpload(context.Background(), &pb_m.Empty{});
-		fmt.Print(uploadPort)
+  	response, err := master.AskForUpload(context.Background(), &pb_m.Empty{});
 
 	if err != nil {
 		fmt.Printf("Error in getting the upload response %v\n", err)
-		return "", err
+		return "", "", err
 	}
 
-  return uploadPort.Port, err
+  return response.Port, response.Ip, err
 }
 
 func (c* Client) UploadFileToServer(master pb_m.MasterNodeClient, filename string) error {
 
-	uploadPort, errGettingPort := c.AskForUpload(master);
+	uploadPort, uploadIP, errGettingPort := c.AskForUpload(master);
 
 	if errGettingPort != nil {
 		fmt.Printf("Failed to get the upload port: %v\n", errGettingPort)
@@ -53,7 +52,7 @@ func (c* Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 
 
 	// connect to the datakeeper node
-	dataConn, errDataConn := c.ConnectToServer("localhost:"+uploadPort)
+	dataConn, errDataConn := c.ConnectToServer(uploadIP+":"+uploadPort)
 
 	if errDataConn != nil {
 		fmt.Printf("Failed to connect to server: %v", errDataConn)

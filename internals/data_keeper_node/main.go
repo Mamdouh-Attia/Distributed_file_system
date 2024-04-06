@@ -73,9 +73,7 @@ func main() {
 			// sleep for 1 seconds
 			time.Sleep(1 * time.Second)
 		}
-		// close the done channel
-		done <- struct {
-		}{}
+
 	}()
 
 	//sepate goroutine to serve the data node

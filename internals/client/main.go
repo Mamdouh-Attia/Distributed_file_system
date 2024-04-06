@@ -30,8 +30,7 @@ func main() {
 	
 	masterClient := mt.NewMasterNodeClient(conn)
 
-	fmt.Print("Test 0\n")
-	uploadErr := Client.UploadFileToServer(masterClient, "2MB.mp4")
+	uploadErr := Client.UploadFileToServer(masterClient, "2mb.mp4")
 
 	if uploadErr != nil {
 		fmt.Printf("Error while uploading the file: %v\n", uploadErr)
