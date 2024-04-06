@@ -219,76 +219,82 @@ func (m *Master) UploadNotification(ctx context.Context, notification *pb_m.Uplo
 
 // replication thread function to replicate the files
 // it checks every 10 seconds if there is a distinct file which is not replicated on at least 3 data nodes
-func (m *Master) ReplicationThread() {
-	//initialization
-	//define set of distinct files -- extracted from Records
-	distinctFiles := make(map[string]int)
-	for _, record := range m.Records {
-		distinctFiles[record.FileName] = 0
-	}
+func (m *Master) ReplicateFiles() {
+	
 
-	for {
-		//loop over the distinct files
-		for file := range distinctFiles {
-			file_recs := m.GetRecordsByFilename(file)
-			//get the source data node machine
-			srcRecord := file_recs[0]
-			sourceDataNodeID := srcRecord.DataKeeperNodeID
-			//get the number of data nodes that have this file
-			numDataNodes := len(file_recs)
-			//while the number of data nodes is less than 3, replicate the file
-			for numDataNodes < 3 {
-				//get the destination data node machine
-				//returns a valid IP and a valid port of a machine to copy a file instance to.
-				destinationMachine := m.selectDestinationMachine(m.Records, file)
-				if destinationMachine == nil {
-					break
-				}
-				//notify both the source and the destination machines to replicate the file
-				result := m.notifyMachineDataTransfer(sourceDataNodeID, destinationMachine, file)
-				if result {
-					log.Printf("Master: File %v is replicated from DataKeeperNode: %v to DataKeeperNode: %v\n", file, sourceDataNodeID, destinationMachine.ID)
-				}
-				//update the number of data nodes that have this file
-				numDataNodes++
+	// define set of distinct files -- extracted from Records
+	distinctFiles := m.getDistinctFiles()
+
+
+	for file := range distinctFiles {
+
+		fileRecords := m.GetRecordsByFilename(file)
+		
+		//get the source data node machine
+		srcRecord := fileRecords[0]
+		sourceDataNodeID := srcRecord.DataKeeperNodeID
+		sourceDataNode := m.GetDataKeeperNodeById(sourceDataNodeID)
+
+		//get the number of data nodes that have this file
+		numDataNodes := len(fileRecords)
+		
+		//while the number of data nodes is less than 3, replicate the file
+		for numDataNodes < 3 {
+
+			//get the destination data node machine
+			//returns a valid IP and a valid port of a machine to copy a file instance to.
+			destinationMachine := m.selectDestinationMachine(file)
+			if destinationMachine == nil {
+				break
 			}
-			//sleep for 10 seconds
-			time.Sleep(10 * time.Second)
+
+			// copy the file from the source to the destination machine
+			errReplica := sourceDataNode.ReplicateFile(destinationMachine.IP, destinationMachine.Port, file)
+
+			if errReplica != nil {
+				log.Printf("Failed to replicate the file: %v", errReplica)
+				break
+			}
+
+			// update the records of the master
+			m.AddRecord(Record{FileName: file, FilePath: file, alive: true, DataKeeperNodeID: destinationMachine.ID})
+
+			//update the number of data nodes that have this file
+			numDataNodes++
 		}
+	
 	}
 }
 
 // function to select the destination machine to replicate the file
 // returns a valid IP and a valid port of a machine to copy a file instance to.
-func (m *Master) selectDestinationMachine(records []Record, file string) *dk.DataKeeperNode {
+func (m *Master) selectDestinationMachine(file string) *dk.DataKeeperNode {
+
 	//get the list of all data nodes that have this file
-	file_recs := m.GetRecordsByFilename(file)
-	if len(file_recs) == 0 {
+	fileRecords := m.GetRecordsByFilename(file)
+	if len(fileRecords) == 0 {
 		return nil
 	}
+
 	//get the list of all data nodes that do not have this file
 	destinationDataNodes := make([]dk.DataKeeperNode, 0)
 	for _, record := range m.DataKeeperNodes {
-		if !contains(file_recs, record.ID) {
+		if !contains(fileRecords, record.ID) {
 			destinationDataNodes = append(destinationDataNodes, record)
 		}
 	}
+
 	//if there is no destination data node, return nil
 	if len(destinationDataNodes) == 0 {
 		return nil
 	}
+
+
 	//get the destination data node machine
 	destinationMachine := destinationDataNodes[rand.Intn(len(destinationDataNodes))]
 	return &destinationMachine
 }
 
-// function to notify both the source and the destination machines to replicate the file
-func (m *Master) notifyMachineDataTransfer(sourceDataNodeID int, destinationMachine *dk.DataKeeperNode, file string) bool {
-	//get the source data node machine
-	// sourceDataNode := m.GetDataKeeperNodeById(sourceDataNodeID)
-	//TODO: notify the source machine to replicate the file
-	return true
-}
 
 // function to check if a list contains a specific element
 func contains(records []Record, id int) bool {
@@ -298,4 +304,15 @@ func contains(records []Record, id int) bool {
 		}
 	}
 	return false
+}
+
+// function to get destinct files
+func (m *Master) getDistinctFiles() map[string]int {
+	
+	distinctFiles := make(map[string]int)
+	for _, record := range m.Records {
+		distinctFiles[record.FileName] = 0
+	}
+
+	return distinctFiles
 }

@@ -48,7 +48,7 @@ func main() {
 	node.ID = int(regResult.NodeID)
 
 	// 2. scan the current directory for files
-	files, err := utils.FindMP4Files("./data")
+	files, err := utils.FindMP4Files()
 	if err != nil {
 		log.Fatalf("Failed to find mp4 files: %v", err)
 	}
@@ -72,9 +72,6 @@ func main() {
 			// sleep for 1 seconds
 			time.Sleep(1 * time.Second)
 		}
-		// close the done channel
-		done <- struct {
-		}{}
 	}()
 
 	//sepate goroutine to serve the data node

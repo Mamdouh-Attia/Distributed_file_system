@@ -56,4 +56,16 @@ func main() {
 
 		}
 	}()
+
+
+	// Make a separate thread to handle the replication process every 10 seconds
+	go func() {
+		for {
+			// sleep for 10 seconds
+			time.Sleep(10 * time.Second)
+			// replicate the files
+			master.ReplicateFiles()
+		}
+	}()
+
 }

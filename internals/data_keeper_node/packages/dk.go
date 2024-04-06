@@ -164,6 +164,74 @@ func (n *DataKeeperNode) DownloadFile(req *pb_d.FileRequest, stream pb_d.DataNod
 
 //TODO: Implement the following functions
 //////  Replication Handling //////
-// func (n *DataKeeperNode) ReplicateFileSend
 
-// func (n *DataKeeperNode) ReplicateFileReceive
+// grpc function to send the file to another data node for replication
+func (n *DataKeeperNode) ReceiveFileForReplica(ctx context.Context, req *pb_d.ReceiveFileForReplicaRequest) (*pb_d.ReceiveFileForReplicaRespone, error) {
+
+	fileName := req.FileName
+	fileContent := req.FileContent
+	fmt.Printf("Received request to replicate file: %s\n", fileName)
+
+	err := utils.SaveFile(fileName, []byte(fileContent))
+
+	if err != nil {
+		fmt.Printf("error in saving the file locally, %v", err)
+		return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
+	}
+
+	n.AddFile(fileName)
+
+	return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
+
+}
+
+// function to replicate the file to another data node in the network
+func (n *DataKeeperNode) ReplicateFile(destinationMachineIP string, destinationMachinePort string, fileName string) error {
+	
+	conn, err := grpc.Dial(destinationMachineIP+":"+destinationMachinePort, grpc.WithInsecure())
+
+	if err != nil {
+		return fmt.Errorf("error connecting to the destination machine: %v", err)
+	}
+
+	defer conn.Close()
+
+	client := pb_d.NewDataNodeClient(conn)
+
+	// Open the file
+	file, err := os.Open(fileName)
+	if err != nil {
+		return fmt.Errorf("error opening file: %v", err)
+	}
+
+	defer file.Close()
+
+	// Buffer to read file contents
+	buffer := make([]byte, 1024)
+
+	// Read file contents and send to client
+	for {
+		bytesRead, err := file.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("error reading file: %v", err)
+		}
+
+		// Send file chunk to client
+		_, errSendFile := client.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileContent: buffer[:bytesRead], FileName: fileName})
+
+		if errSendFile != nil {
+			return fmt.Errorf("error sending file chunk: %v", errSendFile)
+		}
+
+
+	}
+
+	// print the success message
+	fmt.Printf("File replicated successfully to %s:%s\n", destinationMachineIP, destinationMachinePort)
+
+
+	return nil
+}

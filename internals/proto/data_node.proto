@@ -32,10 +32,13 @@ message FileChunk {
     bytes data = 1;
 }
 
-message ReplicateFileRequest {
+message ReceiveFileForReplicaRequest {
     bytes fileContent = 1;
     string fileName = 2;
-    string destination = 3;
+}
+
+message ReceiveFileForReplicaRespone {
+    bool success = 1;
 }
 
 service DataNode {
@@ -51,8 +54,5 @@ service DataNode {
     rpc DownloadFile(FileRequest) returns (stream FileChunk);
 
     // RPC for replicating a file (sending a file to another data node)
-    rpc ReplicateFileSend(ReplicateFileRequest) returns (UploadFileResponse);
-
-    // RPC for receiving a file from another data node
-    rpc ReplicateFileReceive(ReplicateFileRequest) returns (stream FileChunk);
+    rpc ReceiveFileForReplica(ReceiveFileForReplicaRequest) returns (ReceiveFileForReplicaRespone);
 }
