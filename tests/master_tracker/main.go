@@ -40,10 +40,7 @@ func main() {
 	// separate goroutine to handle the heartbeat updates
 	go func() {
 		for {
-			//change all the records to false
-			// for i := range master.Records {
-			// master.DataKeeperNodes[master.Records[i].DataKeeperNodeID].
-			// }
+
 			// sleep for 2 second
 			time.Sleep(2 * time.Second)
 			// check if the records are alive
@@ -55,20 +52,24 @@ func main() {
 			}
 
 		}
-		done <- struct{}{}
 	}()
 
 	// A separate thread to handle the replication process every 10 seconds
 	go func() {
+		// sleep for 10 seconds
+		time.Sleep(1 * time.Second)
+		
 		log.Printf("Replication process started")
 		for {
 			// replicate the files
 			log.Printf("Replicating files")
 			master.ReplicateFiles()
-			// sleep for 10 seconds
-			time.Sleep(10 * time.Second)
+
 		}
-		done <- struct{}{}
 	}()
+
+	// Wait for both goroutines to finish
+	<-done
+	<-done
 
 }
