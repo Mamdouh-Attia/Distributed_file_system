@@ -220,16 +220,15 @@ func (m *Master) UploadNotification(ctx context.Context, notification *pb_m.Uplo
 // replication thread function to replicate the files
 // it checks every 10 seconds if there is a distinct file which is not replicated on at least 3 data nodes
 func (m *Master) ReplicateFiles() {
-	
 
+	log.Printf("Replicating files")
 	// define set of distinct files -- extracted from Records
 	distinctFiles := m.getDistinctFiles()
-
 
 	for file := range distinctFiles {
 
 		fileRecords := m.GetRecordsByFilename(file)
-		
+
 		//get the source data node machine
 		srcRecord := fileRecords[0]
 		sourceDataNodeID := srcRecord.DataKeeperNodeID
@@ -237,7 +236,7 @@ func (m *Master) ReplicateFiles() {
 
 		//get the number of data nodes that have this file
 		numDataNodes := len(fileRecords)
-		
+
 		//while the number of data nodes is less than 3, replicate the file
 		for numDataNodes < 3 {
 
@@ -245,6 +244,7 @@ func (m *Master) ReplicateFiles() {
 			//returns a valid IP and a valid port of a machine to copy a file instance to.
 			destinationMachine := m.selectDestinationMachine(file)
 			if destinationMachine == nil {
+				log.Printf("No destination machine found for file: %v", file)
 				break
 			}
 
@@ -262,7 +262,7 @@ func (m *Master) ReplicateFiles() {
 			//update the number of data nodes that have this file
 			numDataNodes++
 		}
-	
+
 	}
 }
 
@@ -273,6 +273,7 @@ func (m *Master) selectDestinationMachine(file string) *dk.DataKeeperNode {
 	//get the list of all data nodes that have this file
 	fileRecords := m.GetRecordsByFilename(file)
 	if len(fileRecords) == 0 {
+		log.Printf("No records found for file: %v", file)
 		return nil
 	}
 
@@ -286,15 +287,14 @@ func (m *Master) selectDestinationMachine(file string) *dk.DataKeeperNode {
 
 	//if there is no destination data node, return nil
 	if len(destinationDataNodes) == 0 {
+		log.Printf("No destination data nodes found for file: %v", file)
 		return nil
 	}
-
 
 	//get the destination data node machine
 	destinationMachine := destinationDataNodes[rand.Intn(len(destinationDataNodes))]
 	return &destinationMachine
 }
-
 
 // function to check if a list contains a specific element
 func contains(records []Record, id int) bool {
@@ -308,7 +308,7 @@ func contains(records []Record, id int) bool {
 
 // function to get destinct files
 func (m *Master) getDistinctFiles() map[string]int {
-	
+
 	distinctFiles := make(map[string]int)
 	for _, record := range m.Records {
 		distinctFiles[record.FileName] = 0
