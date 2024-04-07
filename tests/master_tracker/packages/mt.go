@@ -294,11 +294,18 @@ func (m *Master) ReplicateFiles() {
 			}
 			log.Printf("Source: %v will replicate file: %v to destination: %v\n", sourceDataNode, file, destinationMachine)
 
+
+			// wait group to wait for the two threads to finish
+			var wg sync.WaitGroup
+			wg.Add(2)
+
+
 			//thread to connect to the destination data node
 			go func() {
 
 				//connect to the source data node
-				conn, err := grpc.Dial(fmt.Sprintf("%s:%s", sourceDataNode.IP, sourceDataNode.Port), grpc.WithInsecure())
+				conn, err := grpc.Dial(fmt.Sprintf("%s:%s", destinationMachine.IP, destinationMachine.Port), grpc.WithInsecure())
+				
 				if err != nil {
 					log.Printf("Failed to connect to the source data node: %v", err)
 				}
@@ -308,13 +315,15 @@ func (m *Master) ReplicateFiles() {
 				//1- notify source data node to replicate the file
 				//2- get the destination data node machine
 
-				//client instance
+				// client instance
 				client := pb_d.NewDataNodeClient(conn)
 				//1- notify source data node to replicate the file
 				_, err = client.ReceiveFileForReplica(context.Background(), &pb_d.ReceiveFileForReplicaRequest{Ip: sourceDataNode.IP, Port: sourceDataNode.Port, PortRandomSeed: int32(randNum)})
 				if err != nil {
 					log.Printf("Failed to notify the Dest data node: %v", err)
 				}
+
+				wg.Done()
 			}()
 			//print the destination machine
 			// log.Printf("Destination Machine: %v", destinationMachine.IP)
@@ -322,7 +331,9 @@ func (m *Master) ReplicateFiles() {
 
 			go func() {
 				//connect to the destination data node
-				conn2, err := grpc.Dial(fmt.Sprintf("%s:%s", destinationMachine.IP, destinationMachine.Port), grpc.WithInsecure())
+				conn2, err := grpc.Dial(fmt.Sprintf("%s:%s", sourceDataNode.IP, sourceDataNode.Port), grpc.WithInsecure())
+
+
 				if err != nil {
 					log.Printf("Failed to connect to the destination data node: %v", err)
 				}
@@ -334,7 +345,12 @@ func (m *Master) ReplicateFiles() {
 				if err != nil {
 					log.Printf("Failed to notify the destination data node: %v", err)
 				}
+
+				wg.Done()
 			}()
+
+			//wait for the two threads to finish
+			wg.Wait()
 			// update the records of the master
 			m.AddRecord(Record{FileName: file, FilePath: file, alive: true, DataKeeperNodeID: destinationMachine.ID})
 

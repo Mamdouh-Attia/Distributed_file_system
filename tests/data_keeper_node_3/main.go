@@ -25,6 +25,7 @@ func main() {
 
 	node := dk.NewDataKeeperNode(1, "localhost", portStr, []string{"2MB"})
 	log.Printf("Node: %v", node)
+
 	// Set up a connection to the server.
 	conn, err := grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
