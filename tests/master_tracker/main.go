@@ -1,8 +1,8 @@
 package main
 
 import (
-	mt "Distributed_file_system/internals/master_tracker/packages"
-	pb "Distributed_file_system/internals/pb/master_node"
+	mt "Distributed_file_system/tests/master_tracker/packages"
+	pb "Distributed_file_system/tests/pb/master_node"
 	"log"
 	"net"
 	"time"

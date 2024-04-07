@@ -35,6 +35,7 @@ message ReplicaRequest {
     string ip = 1;
     string port = 2;
     string fileName = 3;
+    int32 portRandomSeed = 4;
 }
 
 message NotifyReplicaResponse {
@@ -50,6 +51,7 @@ message ReceiveFileForReplicaRequest {
     // int64    fileSize = 2;
     string ip = 1;
     string port = 2;
+    int32 portRandomSeed = 3;
     // bytes fileContent = 5;
 }
 

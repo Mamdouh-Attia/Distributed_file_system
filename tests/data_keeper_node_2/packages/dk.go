@@ -1,8 +1,8 @@
 package dk
 
 import (
-	pb_d "Distributed_file_system/internals/pb/data_node"
-	pb_m "Distributed_file_system/internals/pb/master_node"
+	pb_d "Distributed_file_system/tests/pb/data_node"
+	pb_m "Distributed_file_system/tests/pb/master_node"
 	"encoding/json"
 	"io/ioutil"
 	"net"

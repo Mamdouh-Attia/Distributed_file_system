@@ -2,8 +2,8 @@
 package main
 
 import (
-	client "Distributed_file_system/internals/client/packages"
-	mt "Distributed_file_system/internals/pb/master_node"
+	client "Distributed_file_system/tests/client/packages"
+	mt "Distributed_file_system/tests/pb/master_node"
 	"fmt"
 	"os"
 )

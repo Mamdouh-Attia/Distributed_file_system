@@ -1,10 +1,10 @@
 package main
 
 import (
-	dk "Distributed_file_system/internals/data_keeper_node/packages"
-	pb "Distributed_file_system/internals/pb/data_node"
-	mt "Distributed_file_system/internals/pb/master_node"
-	utils "Distributed_file_system/internals/utils"
+	dk "Distributed_file_system/tests/data_keeper_node_1/packages"
+	pb "Distributed_file_system/tests/pb/data_node"
+	mt "Distributed_file_system/tests/pb/master_node"
+	utils "Distributed_file_system/tests/utils"
 	"context"
 	"log"
 	"math/rand"
@@ -24,6 +24,8 @@ func main() {
 	// Create a new DataKeeperNode instance
 
 	node := dk.NewDataKeeperNode(1, "localhost", portStr, []string{"2MB"})
+	log.Printf("Node: %v", node)
+
 	// Set up a connection to the server.
 	conn, err := grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
