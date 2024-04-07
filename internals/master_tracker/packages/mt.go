@@ -2,6 +2,7 @@ package mt
 
 import (
 	dk "Distributed_file_system/internals/data_keeper_node/packages"
+	// pb_d "Distributed_file_system/internals/pb/data_node"
 	pb_m "Distributed_file_system/internals/pb/master_node"
 	utils "Distributed_file_system/internals/utils"
 	"context"
@@ -9,6 +10,8 @@ import (
 	"log"
 	"math/rand"
 	"time"
+
+	"google.golang.org/grpc"
 )
 
 // Record represents a single record in the master
@@ -95,6 +98,15 @@ func (m *Master) KillDataNode(dataKeeperNodeId int32) {
 	}
 	//log the data node is dead
 	log.Printf("DataKeeperNode: %v is dead", dataKeeperNodeId)
+}
+
+// Function to remove dead records from the master
+func (m *Master) RemoveDeadRecords() {
+	for i, record := range m.Records {
+		if !record.alive {
+			m.Records = append(m.Records[:i], m.Records[i+1:]...)
+		}
+	}
 }
 
 // grpc function to handle the request from data node to register itself in the master
@@ -230,6 +242,10 @@ func (m *Master) ReplicateFiles() {
 		fileRecords := m.GetRecordsByFilename(file)
 
 		//get the source data node machine
+		if len(fileRecords) == 0 {
+			log.Printf("No records found for file: %v", file)
+			continue
+		}
 		srcRecord := fileRecords[0]
 		sourceDataNodeID := srcRecord.DataKeeperNodeID
 		sourceDataNode := m.GetDataKeeperNodeById(sourceDataNodeID)
@@ -240,6 +256,16 @@ func (m *Master) ReplicateFiles() {
 		//while the number of data nodes is less than 3, replicate the file
 		for numDataNodes < 3 {
 
+			//connect to the source data node
+			conn, err := grpc.Dial(fmt.Sprintf("%s:%s", sourceDataNode.IP, sourceDataNode.Port), grpc.WithInsecure())
+			if err != nil {
+				log.Printf("Failed to connect to the source data node: %v", err)
+				break
+			}
+			defer conn.Close()
+			//create a new client
+			// client := pb_d.NewDataNodeClient(conn)
+
 			//get the destination data node machine
 			//returns a valid IP and a valid port of a machine to copy a file instance to.
 			destinationMachine := m.selectDestinationMachine(file)
@@ -247,14 +273,14 @@ func (m *Master) ReplicateFiles() {
 				log.Printf("No destination machine found for file: %v", file)
 				break
 			}
-
+			log.Printf("Source: %v will replicate file: %v to destination: %v\n", sourceDataNode, file, destinationMachine)
 			// copy the file from the source to the destination machine
-			errReplica := sourceDataNode.ReplicateFile(destinationMachine.IP, destinationMachine.Port, file)
+			// errReplica := client.
 
-			if errReplica != nil {
-				log.Printf("Failed to replicate the file: %v", errReplica)
-				break
-			}
+			// if errReplica != nil {
+			// 	log.Printf("Failed to replicate the file: %v", errReplica)
+			// 	break
+			// }
 
 			// update the records of the master
 			m.AddRecord(Record{FileName: file, FilePath: file, alive: true, DataKeeperNodeID: destinationMachine.ID})

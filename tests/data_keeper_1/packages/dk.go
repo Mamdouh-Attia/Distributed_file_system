@@ -3,6 +3,7 @@ package dk
 import (
 	pb_d "Distributed_file_system/internals/pb/data_node"
 	pb_m "Distributed_file_system/internals/pb/master_node"
+	"net"
 
 	"Distributed_file_system/internals/utils"
 	"context"
@@ -82,7 +83,7 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 	fileName := req.FileName
 	fileContent := req.FileContent
 	fmt.Printf("Received request to upload file: %s\n", fileName)
-	err := utils.SaveFile(fileName, []byte(fileContent))
+	// err := utils.SaveFile(fileName, []byte(fileContent))
 
 	if err != nil {
 		fmt.Printf("error in saving the file locally, %v", err)
@@ -187,7 +188,7 @@ func (n *DataKeeperNode) ReceiveFileForReplica(ctx context.Context, req *pb_d.Re
 
 // function to replicate the file to another data node in the network
 func (n *DataKeeperNode) ReplicateFile(destinationMachineIP string, destinationMachinePort string, fileName string) error {
-	
+
 	conn, err := grpc.Dial(destinationMachineIP+":"+destinationMachinePort, grpc.WithInsecure())
 
 	if err != nil {
@@ -226,12 +227,36 @@ func (n *DataKeeperNode) ReplicateFile(destinationMachineIP string, destinationM
 			return fmt.Errorf("error sending file chunk: %v", errSendFile)
 		}
 
-
 	}
 
 	// print the success message
 	fmt.Printf("File replicated successfully to %s:%s\n", destinationMachineIP, destinationMachinePort)
 
-
 	return nil
+}
+
+// grpc function that get notified about the replication request from the master to listen for another data node
+func (n *DataKeeperNode) NotifyReplica(ctx context.Context, req *pb_d.NodeInfo) (*pb_d.NotifyReplicaResponse, error) {
+
+	destinationMachineIP := req.Ip
+	destinationMachinePort := req.Port
+
+	log.Printf("Received request to replicate file to: %s:%s\n", destinationMachineIP, destinationMachinePort)
+
+	//thread to listen for the replication request
+	go func() {
+		// Set up the gRPC server to listen on its port
+		lis, err := net.Listen("tcp", n.IP+":"+n.Port)
+		if err != nil {
+			log.Fatalf("Failed to listen: %v", err)
+		}
+		conn,err := lis.Accept()
+		if err != nil {
+			log.Fatalf("Failed to accept connection: %v", err)
+		}
+		go n.ReceiveFileForReplica()
+
+	}()
+
+	return &pb_d.NotifyReplicaResponse{Success: true}, nil
 }

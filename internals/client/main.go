@@ -5,6 +5,7 @@ import (
 	client "Distributed_file_system/internals/client/packages"
 	mt "Distributed_file_system/internals/pb/master_node"
 	"fmt"
+	"os"
 )
 
 const (
@@ -13,6 +14,15 @@ const (
 )
 
 func main() {
+
+	//take file name as argument
+	if len(os.Args) < 3 {
+		fmt.Printf("Usage: %v <filename>\n", os.Args[0])
+		return
+	}
+
+	//arg1 : "u" or "d"
+	//arg2 : filename
 
 	// the client should connect to the master
 	Client := client.NewClient()
@@ -27,13 +37,21 @@ func main() {
 	defer conn.Close()
 
 	fmt.Printf("Connected to server: %v\n", "localhost:8080")
-	
+
 	masterClient := mt.NewMasterNodeClient(conn)
 
-	fmt.Print("Test 0\n")
-	uploadErr := Client.UploadFileToServer(masterClient, "2MB.mp4")
+	switch os.Args[1] {
+	case "u":
+		uploadErr := Client.UploadFileToServer(masterClient, os.Args[2])
 
-	if uploadErr != nil {
-		fmt.Printf("Error while uploading the file: %v\n", uploadErr)
+		if uploadErr != nil {
+			fmt.Printf("Error while uploading the file: %v\n", uploadErr)
+		}
+	case "d":
+		
+	default:
+		fmt.Printf("Usage: %v <u/d> <filename>\n", os.Args[0])
 	}
 }
+
+// fmt.Print("Test 0\n")
