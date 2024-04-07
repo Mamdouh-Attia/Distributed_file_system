@@ -55,6 +55,11 @@ func (m *Master) RemoveRecord(filename string, dataKeeperNodeId int) {
 		}
 	}
 }
+func (m *Master) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+	log.Printf("Replicating file: %v", req.FileName)
+	return &pb_d.NotifyReplicaResponse{Success: true}, nil
+
+}
 
 // GetRecordsByFilename returns all records from the master that has this filename
 func (m *Master) GetRecordsByFilename(filename string) []Record {

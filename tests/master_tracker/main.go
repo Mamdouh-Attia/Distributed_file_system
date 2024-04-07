@@ -40,13 +40,8 @@ func main() {
 			// }
 			// sleep for 2 second
 			time.Sleep(2 * time.Second)
-			// check if the records are alive
-			for i := range master.Records {
-				if master.DataKeeperNodes[master.Records[i].DataKeeperNodeID].Files == nil {
-					// remove the record
-					master.RemoveRecord(master.Records[i].FileName, master.Records[i].DataKeeperNodeID)
-				}
-			}
+			// call removeDeadRecords
+			master.RemoveDeadRecords()
 
 		}
 	}()

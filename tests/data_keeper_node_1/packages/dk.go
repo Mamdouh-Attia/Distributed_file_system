@@ -272,7 +272,7 @@ func (n *DataKeeperNode) ReceiveFileForReplicaHandler(conn net.Conn) {
 }
 
 // GRPC function to send the file to another data node for replication
-func (n *DataKeeperNode) ReplicateFiles(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+func (n *DataKeeperNode) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
 
 	//get the destination machine ip and port
 	destinationMachineIP := req.Ip
