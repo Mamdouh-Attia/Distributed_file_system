@@ -3,8 +3,10 @@ package dk
 import (
 	pb_d "Distributed_file_system/internals/pb/data_node"
 	pb_m "Distributed_file_system/internals/pb/master_node"
+	"encoding/json"
+	"io/ioutil"
+	"net"
 
-	"Distributed_file_system/internals/utils"
 	"context"
 	"os"
 
@@ -16,18 +18,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-
-
 type File struct {
-	FileName string
-	FilePath string
+	FileName    string
+	FilePath    string
 	FileContent []byte
 }
-
 
 const (
 	defaultAdress = "localhost:8080"
 )
+
 // DataKeeperNode represents a node responsible for keeping track of files.
 type DataKeeperNode struct {
 	pb_d.UnimplementedDataNodeServer
@@ -52,10 +52,10 @@ func (n *DataKeeperNode) AddFile(file string) {
 	n.Files = append(n.Files, file)
 }
 
-func (n* DataKeeperNode) ConnectToServer(address string) (*grpc.ClientConn, error ) {
+func (n *DataKeeperNode) ConnectToServer(address string) (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	return conn, err;
+	return conn, err
 }
 
 // RemoveFile removes a file from the list of files stored on the node.
@@ -68,30 +68,68 @@ func (n *DataKeeperNode) RemoveFile(filename string) {
 	}
 }
 
-func (n* DataKeeperNode) GetFileByName(filename string) string {
+func (n *DataKeeperNode) GetFileByName(filename string) string {
 	for _, file := range n.Files {
 		if file == filename {
 			return file
-			
+
 		}
 	}
 	return ""
 }
 
-
-// grpc function to receive the uploaded file from the client 
-func (n* DataKeeperNode)  UploadFile (ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error)  {
+// grpc function to receive the uploaded file from the client
+func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error) {
 
 	fileName := req.FileName
-	fileContent := req.FileContent
-	fmt.Printf("Received request to upload file: %s\n", fileName)
-	err := utils.SaveFile(fileName, []byte(fileContent))
+	clintIp := req.Ip
+	clintPort := req.Port
+	//convert the file size from string to int64
+	// fileSize := req.FileSize
+	//Listen to the client
 
-	if err != nil {
-		fmt.Printf("error in saving the file locally, %v", err)
-		return &pb_d.UploadFileResponse{Success: false}, err
-	}
-	
+	go func() {
+		//create a listener
+		listener, err := net.Listen("tcp", clintIp+":"+clintPort)
+		if err != nil {
+			fmt.Printf("error creating listener: %v\n", err)
+			return
+		}
+		defer listener.Close()
+
+		//accept the connection
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Printf("error accepting connection: %v\n", err)
+			return
+		}
+		defer conn.Close()
+
+		//Read the data
+		data, err := ioutil.ReadAll(conn)
+
+		if err != nil {
+			fmt.Printf("error reading the file content: %v\n", err)
+			return
+		}
+
+		receivedFile := &pb_d.UploadFileRequest{}
+		err = json.Unmarshal(data, receivedFile)
+		if err != nil {
+			fmt.Println("Error decoding file:", err)
+			return
+		}
+		print(data)
+
+		// store the file content in the local file
+		err = ioutil.WriteFile(receivedFile.FileName, receivedFile.FileContent, 0644)
+		if err != nil {
+			fmt.Printf("error saving the file: %v\n", err)
+			return
+		}
+
+	}()
+
 	n.AddFile(fileName)
 	connMaster, errConn := n.ConnectToServer(defaultAdress)
 
@@ -104,7 +142,7 @@ func (n* DataKeeperNode)  UploadFile (ctx context.Context, req *pb_d.UploadFileR
 
 	masterClient := pb_m.NewMasterNodeClient(connMaster)
 
-   _, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}})
+	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}})
 
 	if notificationErr != nil {
 		fmt.Printf("Failed to notify the master: %v\n", notificationErr)
@@ -163,4 +201,115 @@ func (n *DataKeeperNode) DownloadFile(req *pb_d.FileRequest, stream pb_d.DataNod
 	}
 
 	return nil
+}
+
+//TODO: Implement the following functions
+//////  Replication Handling //////
+
+// grpc function to receive the file to another data node for replication
+func (n *DataKeeperNode) ReceiveFileForReplica(ctx context.Context, req *pb_d.ReceiveFileForReplicaRequest) (*pb_d.ReceiveFileForReplicaRespone, error) {
+
+	//get the destination machine ip and port
+	srcMachineIP := req.Ip
+	srcMachinePort := req.Port
+
+	listener, err := net.Listen("tcp", srcMachineIP+":"+srcMachinePort)
+	if err != nil {
+		fmt.Printf("error creating listener: %v\n", err)
+		return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
+	}
+	defer listener.Close()
+
+	conn, err := listener.Accept()
+	if err != nil {
+		fmt.Printf("error accepting connection: %v\n", err)
+		return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
+
+	}
+	defer conn.Close()
+
+	n.ReceiveFileForReplicaHandler(conn)
+	// return n.ReceiveFileForReplicaHandler(conn)
+	return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
+}
+
+// func to handle the file received for replication
+func (n *DataKeeperNode) ReceiveFileForReplicaHandler(conn net.Conn) {
+	//Read the data
+	data, err := ioutil.ReadAll(conn)
+
+	if err != nil {
+		fmt.Printf("error reading the file content: %v\n", err)
+	}
+
+	receivedFile := &pb_d.UploadFileRequest{}
+	err = json.Unmarshal(data, receivedFile)
+	if err != nil {
+		fmt.Println("Error decoding file:", err)
+	}
+	print(data)
+
+	// store the file content in the local file
+	err = ioutil.WriteFile(receivedFile.FileName, receivedFile.FileContent, 0644)
+	if err != nil {
+		fmt.Printf("error saving the file: %v\n", err)
+	}
+
+	// fileName := req.FileName
+	// fileContent := req.FileContent
+	// fmt.Printf("Received request to replicate file: %s\n", fileName)
+
+	// err := utils.SaveFile(fileName, []byte(fileContent))
+
+	// if err != nil {
+	// 	fmt.Printf("error in saving the file locally, %v", err)
+	// 	return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
+	// }
+
+	// n.AddFile(fileName)
+
+	// return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
+}
+
+// GRPC function to send the file to another data node for replication
+func (n *DataKeeperNode) ReplicateFiles(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+
+	//get the destination machine ip and port
+	destinationMachineIP := req.Ip
+	destinationMachinePort := req.Port
+	fileName := req.FileName
+
+	//connect to the destination machine tcp
+	conn, err := net.Dial("tcp", destinationMachineIP+":"+destinationMachinePort)
+	if err != nil {
+		fmt.Printf("error connecting to the destination machine: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+	defer conn.Close()
+
+	//read the file content
+	fileContent, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		fmt.Printf("error reading the file content: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+
+	//convert the file content to json
+	file := &pb_d.UploadFileRequest{FileName: fileName, FileContent: fileContent}
+
+	serializedFile, err := json.Marshal(file)
+
+	if err != nil {
+		fmt.Printf("error serializing the file: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+
+	//send the file content to the destination machine
+	_, err = conn.Write(serializedFile)
+	if err != nil {
+		fmt.Printf("error sending the file content: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+
+	return &pb_d.NotifyReplicaResponse{Success: true}, nil
 }

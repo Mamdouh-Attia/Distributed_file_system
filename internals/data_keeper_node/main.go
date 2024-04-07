@@ -54,7 +54,6 @@ func main() {
 	}
 	//print the files
 	log.Printf("Files found: %v", files)
-	
 	// 3. send the file list to the server
 	updateFilesListResult, err := client.ReceiveFileList(context.Background(), &mt.ReceiveFileListRequest{NodeID: int32(node.ID), Files: files})
 	if err != nil {
@@ -73,9 +72,6 @@ func main() {
 			// sleep for 1 seconds
 			time.Sleep(1 * time.Second)
 		}
-		// close the done channel
-		done <- struct {
-		}{}
 	}()
 
 	//sepate goroutine to serve the data node
