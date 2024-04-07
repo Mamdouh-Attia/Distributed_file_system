@@ -212,8 +212,23 @@ func (n *DataKeeperNode) ReceiveFileForReplica(ctx context.Context, req *pb_d.Re
 	//get the destination machine ip and port
 	srcMachineIP := req.Ip
 	srcMachinePort := req.Port
+	rand_seed := req.PortRandomSeed
 
-	listener, err := net.Listen("tcp", srcMachineIP+":"+srcMachinePort)
+	//change port
+	var portNum int
+	var portStr string
+	_, err := fmt.Sscan(srcMachinePort, &portNum) // Handle potential parsing errors
+	if err != nil {
+		log.Printf("Failed to parse port number: %v", err)
+	}
+	portNum += int(rand_seed)
+
+	// Convert port number back to string
+	portStr = fmt.Sprint(portNum)
+
+	log.Println("From replicate file: port number: ", portNum)
+
+	listener, err := net.Listen("tcp", srcMachineIP+":"+portStr)
 	if err != nil {
 		fmt.Printf("error creating listener: %v\n", err)
 		return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
@@ -272,15 +287,29 @@ func (n *DataKeeperNode) ReceiveFileForReplicaHandler(conn net.Conn) {
 }
 
 // GRPC function to send the file to another data node for replication
-func (n *DataKeeperNode) ReplicateFiles(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+func (n *DataKeeperNode) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
 
 	//get the destination machine ip and port
-	destinationMachineIP := req.Ip
-	destinationMachinePort := req.Port
+	sourceIP := req.Ip
+	sourcePort := req.Port
 	fileName := req.FileName
+	rand_seed := req.PortRandomSeed
+
+	//change port
+	var portNum int
+	var portStr string
+	_, err := fmt.Sscan(sourcePort, &portNum) // Handle potential parsing errors
+	if err != nil {
+		log.Printf("Failed to parse port number: %v", err)
+	}
+	portNum += int(rand_seed)
+
+	log.Println("From replicate file: port number: ", portNum)
+	// Convert port number back to string
+	portStr = fmt.Sprint(portNum)
 
 	//connect to the destination machine tcp
-	conn, err := net.Dial("tcp", destinationMachineIP+":"+destinationMachinePort)
+	conn, err := net.Dial("tcp", sourceIP+":"+portStr)
 	if err != nil {
 		fmt.Printf("error connecting to the destination machine: %v\n", err)
 		return &pb_d.NotifyReplicaResponse{Success: false}, err

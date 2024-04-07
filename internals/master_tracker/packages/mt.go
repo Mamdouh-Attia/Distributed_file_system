@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -29,6 +30,7 @@ type Master struct {
 	DataKeeperNodes []dk.DataKeeperNode
 	//map of datakeeper node id to timer to keep track of the heartbeat
 	Heartbeats map[int32]*time.Timer
+	mu         sync.Mutex
 }
 
 // NewMaster creates a new Master instance'
@@ -44,6 +46,10 @@ func NewMaster() *Master {
 func (m *Master) AddRecord(record Record) {
 	m.Records = append(m.Records, record)
 }
+func (mt *Master) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+	// return
+	return &pb_d.NotifyReplicaResponse{Success: true}, nil
+}
 
 // RemoveRecord removes a record from the master
 // optional parameters to remove a record either by filename or by datakeeper node
@@ -54,11 +60,6 @@ func (m *Master) RemoveRecord(filename string, dataKeeperNodeId int) {
 			break
 		}
 	}
-}
-func (m *Master) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
-	log.Printf("Replicating file: %v", req.FileName)
-	return &pb_d.NotifyReplicaResponse{Success: true}, nil
-
 }
 
 // GetRecordsByFilename returns all records from the master that has this filename
@@ -105,7 +106,7 @@ func (m *Master) KillDataNode(dataKeeperNodeId int32) {
 	log.Printf("DataKeeperNode: %v is dead", dataKeeperNodeId)
 }
 
-// Function to remove dead records from the master
+// remove dead records from the master
 func (m *Master) RemoveDeadRecords() {
 	for i, record := range m.Records {
 		if !record.alive {
@@ -120,6 +121,10 @@ func (m *Master) RegisterDataNode(ctx context.Context, req *pb_m.RegisterDataNod
 	id := utils.GenerateID()
 	//TODO : if duplicate id, generate a new one
 
+	//mutex lock
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	// add the data node to the master
 	m.DataKeeperNodes = append(m.DataKeeperNodes, *dk.NewDataKeeperNode(int(id), req.DataKeeper.Ip, req.DataKeeper.Port, []string{}))
 	//print the data node
@@ -130,23 +135,36 @@ func (m *Master) RegisterDataNode(ctx context.Context, req *pb_m.RegisterDataNod
 	m.Heartbeats[int32(id)] = time.AfterFunc(5*time.Second, func() {
 		m.KillDataNode(int32(id))
 	})
+	log.Printf("DataKeeperNode: %v is registered", id)
 	return &pb_m.RegisterDataNodeResponse{Success: true, NodeID: int32(id)}, nil
 }
 
 // grpc function to update the master with the new status of the data node
 func (m *Master) HeartbeatUpdate(ctx context.Context, dk *pb_m.HeartbeatUpdateRequest) (*pb_m.HeartbeatUpdateResponse, error) {
 
-	log.Printf("HeartbeatUpdateRequest: ")
 	// get all records with the same datakeeper node id
 	records := m.GetRecordsByDataKeeperNode(int(dk.NodeID))
 
+	// if the data node is not in the master, return an error
+	if len(records) == 0 {
+		return &pb_m.HeartbeatUpdateResponse{Success: false}, nil
+	}
+
+	//check if the data node exists in the master
+	if _, ok := m.Heartbeats[dk.NodeID]; !ok {
+		//start the heartbeat timer for this data node
+		m.Heartbeats[dk.NodeID] = time.AfterFunc(5*time.Second, func() {
+			m.KillDataNode(dk.NodeID)
+		})
+	}
 	//reset the heartbeat timer
 	m.Heartbeats[dk.NodeID].Reset(5 * time.Second)
 	// if the datakeeper node is in the master, update its status
 	for _, record := range records {
 		record.alive = true
 	}
-	//log the data node is alive
+
+	//TODO::log the data node is alive
 	log.Printf("DataKeeperNode: %v is alive", dk.NodeID)
 
 	return &pb_m.HeartbeatUpdateResponse{Success: true}, nil
@@ -264,7 +282,9 @@ func (m *Master) ReplicateFiles() {
 
 		//while the number of data nodes is less than 3, replicate the file
 		for numDataNodes < 3 {
-
+			//random replication additive number (range 1 - 1000)
+			randNum := rand.Intn(1000)
+			//src : Sender || dest : Receiver
 			//get the destination data node machine
 			//returns a valid IP and a valid port of a machine to copy a file instance to.
 			destinationMachine := m.selectDestinationMachine(file)
@@ -274,43 +294,63 @@ func (m *Master) ReplicateFiles() {
 			}
 			log.Printf("Source: %v will replicate file: %v to destination: %v\n", sourceDataNode, file, destinationMachine)
 
-			//connect to the source data node
-			conn, err := grpc.Dial(fmt.Sprintf("%s:%s", sourceDataNode.IP, sourceDataNode.Port), grpc.WithInsecure())
-			if err != nil {
-				log.Printf("Failed to connect to the source data node: %v", err)
-				break
-			}
-			defer conn.Close()
-			//create a new client
-			// client := pb_d.NewDataNodeClient(conn)
-			//1- notify source data node to replicate the file
-			//2- get the destination data node machine
 
-			//client instance
-			client := pb_d.NewDataNodeClient(conn)
-			//1- notify source data node to replicate the file
-			_, err = client.ReplicateFile(context.Background(), &pb_d.ReplicaRequest{Ip: sourceDataNode.IP, Port: sourceDataNode.Port, FileName: file})
-			if err != nil {
-				log.Printf("Failed to notify the source data node: %v", err)
-				break
-			}
+			// wait group to wait for the two threads to finish
+			var wg sync.WaitGroup
+			wg.Add(2)
 
-			//connect to the destination data node
-			conn, err = grpc.Dial(fmt.Sprintf("%s:%s", destinationMachine.IP, destinationMachine.Port), grpc.WithInsecure())
-			if err != nil {
-				log.Printf("Failed to connect to the destination data node: %v", err)
-				break
-			}
-			defer conn.Close()
-			//create a new client
-			client2 := pb_d.NewDataNodeClient(conn)
-			//2- get the destination data node machine
-			_, err = client2.ReceiveFileForReplica(context.Background(), &pb_d.ReceiveFileForReplicaRequest{Ip: sourceDataNode.IP, Port: sourceDataNode.Port})
-			if err != nil {
-				log.Printf("Failed to notify the destination data node: %v", err)
-				break
-			}
 
+			//thread to connect to the destination data node
+			go func() {
+
+				//connect to the source data node
+				conn, err := grpc.Dial(fmt.Sprintf("%s:%s", destinationMachine.IP, destinationMachine.Port), grpc.WithInsecure())
+				
+				if err != nil {
+					log.Printf("Failed to connect to the source data node: %v", err)
+				}
+				defer conn.Close()
+				//create a new client
+				// client := pb_d.NewDataNodeClient(conn)
+				//1- notify source data node to replicate the file
+				//2- get the destination data node machine
+
+				// client instance
+				client := pb_d.NewDataNodeClient(conn)
+				//1- notify source data node to replicate the file
+				_, err = client.ReceiveFileForReplica(context.Background(), &pb_d.ReceiveFileForReplicaRequest{Ip: sourceDataNode.IP, Port: sourceDataNode.Port, PortRandomSeed: int32(randNum)})
+				if err != nil {
+					log.Printf("Failed to notify the Dest data node: %v", err)
+				}
+
+				wg.Done()
+			}()
+			//print the destination machine
+			// log.Printf("Destination Machine: %v", destinationMachine.IP)
+			// log.Printf("Destination Machine: %v", destinationMachine.Port)
+
+			go func() {
+				//connect to the destination data node
+				conn2, err := grpc.Dial(fmt.Sprintf("%s:%s", sourceDataNode.IP, sourceDataNode.Port), grpc.WithInsecure())
+
+
+				if err != nil {
+					log.Printf("Failed to connect to the destination data node: %v", err)
+				}
+				defer conn2.Close()
+				//create a new client
+				client2 := pb_d.NewDataNodeClient(conn2)
+				//2- get the destination data node machine
+				_, err = client2.ReplicateFile(context.Background(), &pb_d.ReplicaRequest{Ip: sourceDataNode.IP, Port: sourceDataNode.Port, FileName: file, PortRandomSeed: int32(randNum)})
+				if err != nil {
+					log.Printf("Failed to notify the destination data node: %v", err)
+				}
+
+				wg.Done()
+			}()
+
+			//wait for the two threads to finish
+			wg.Wait()
 			// update the records of the master
 			m.AddRecord(Record{FileName: file, FilePath: file, alive: true, DataKeeperNodeID: destinationMachine.ID})
 

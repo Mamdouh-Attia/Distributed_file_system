@@ -43,7 +43,11 @@ func (c *Client) AskForUpload(master pb_m.MasterNodeClient) (string, string, err
 
 	return response.Port, response.Ip, nil
 }
+func (m *Client) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+	log.Printf("Replicating file: %v", req.FileName)
+	return &pb_d.NotifyReplicaResponse{Success: true}, nil
 
+}
 func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename string) error {
 
 	uploadPort, uploadIP, errGettingPort := c.AskForUpload(master)
