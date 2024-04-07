@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net"
 
-	"Distributed_file_system/internals/utils"
 	"context"
 	"os"
 
@@ -129,30 +128,6 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 			return
 		}
 
-		//create a file buffer using the file size
-		// fileBuffer := make([]byte, fileSize)
-
-		// //read the file content from the client
-		// totalRead := 0
-		// for totalRead < int(fileSize) {
-		// 	n, err := conn.Read(fileBuffer[totalRead:])
-		// 	if err != nil {
-		// 		if err == io.EOF {
-		// 			break
-		// 		}
-		// 		fmt.Printf("error reading the file content: %v\n", err)
-		// 		return
-		// 	}
-		// 	totalRead += n
-		// }
-
-		//write the file content to the local file
-		// err = utils.SaveFile(fileName, fileBuffer)
-		// if err != nil {
-		// 	fmt.Printf("error saving the file: %v\n", err)
-		// 	return
-		// }
-
 	}()
 
 	n.AddFile(fileName)
@@ -231,79 +206,110 @@ func (n *DataKeeperNode) DownloadFile(req *pb_d.FileRequest, stream pb_d.DataNod
 //TODO: Implement the following functions
 //////  Replication Handling //////
 
-// grpc function to send the file to another data node for replication
+// grpc function to receive the file to another data node for replication
 func (n *DataKeeperNode) ReceiveFileForReplica(ctx context.Context, req *pb_d.ReceiveFileForReplicaRequest) (*pb_d.ReceiveFileForReplicaRespone, error) {
 
-	fileName := req.FileName
-	fileContent := req.FileContent
-	fmt.Printf("Received request to replicate file: %s\n", fileName)
+	//get the destination machine ip and port
+	srcMachineIP := req.Ip
+	srcMachinePort := req.Port
 
-	err := utils.SaveFile(fileName, []byte(fileContent))
-
+	listener, err := net.Listen("tcp", srcMachineIP+":"+srcMachinePort)
 	if err != nil {
-		fmt.Printf("error in saving the file locally, %v", err)
+		fmt.Printf("error creating listener: %v\n", err)
 		return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
 	}
+	defer listener.Close()
 
-	n.AddFile(fileName)
-
-	return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
-
-}
-
-// function to replicate the file to another data node in the network
-func (n *DataKeeperNode) ReplicateFile(destinationMachineIP string, destinationMachinePort string, fileName string) error {
-
-	conn, err := grpc.Dial(destinationMachineIP+":"+destinationMachinePort, grpc.WithInsecure())
-
+	conn, err := listener.Accept()
 	if err != nil {
-		return fmt.Errorf("error connecting to the destination machine: %v", err)
-	}
+		fmt.Printf("error accepting connection: %v\n", err)
+		return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
 
+	}
 	defer conn.Close()
 
-	// client := pb_d.NewDataNodeClient(conn)
+	n.ReceiveFileForReplicaHandler(conn)
+	// return n.ReceiveFileForReplicaHandler(conn)
+	return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
+}
 
-	log.Printf("debug: filename: '%s'", fileName)
-	// Open the file
-	//TODO : fix the sys can't find the file issue
-	//check if the file exists
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		return fmt.Errorf("file does not exist: %v", err)
-	}
-	// Open the file
-	file, err := os.Open(fileName)
+// func to handle the file received for replication
+func (n *DataKeeperNode) ReceiveFileForReplicaHandler(conn net.Conn) {
+	//Read the data
+	data, err := ioutil.ReadAll(conn)
+
 	if err != nil {
-		return fmt.Errorf("error opening file: %v", err)
+		fmt.Printf("error reading the file content: %v\n", err)
 	}
 
-	defer file.Close()
+	receivedFile := &pb_d.UploadFileRequest{}
+	err = json.Unmarshal(data, receivedFile)
+	if err != nil {
+		fmt.Println("Error decoding file:", err)
+	}
+	print(data)
 
-	// Buffer to read file contents
-	// buffer := make([]byte, 1024)
+	// store the file content in the local file
+	err = ioutil.WriteFile(receivedFile.FileName, receivedFile.FileContent, 0644)
+	if err != nil {
+		fmt.Printf("error saving the file: %v\n", err)
+	}
 
-	// Read file contents and send to client
-	// for {
-	// 	bytesRead, err := file.Read(buffer)
-	// 	if err != nil {
-	// 		if err == io.EOF {
-	// 			break
-	// 		}
-	// 		return fmt.Errorf("error reading file: %v", err)
-	// 	}
+	// fileName := req.FileName
+	// fileContent := req.FileContent
+	// fmt.Printf("Received request to replicate file: %s\n", fileName)
 
-	// Send file chunk to client
-	//TODO: Send the file content to the destination machine
-	// _, errSendFile := client.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileContent: buffer[:bytesRead], FileName: fileName})
+	// err := utils.SaveFile(fileName, []byte(fileContent))
 
-	// if errSendFile != nil {
-	// 	return fmt.Errorf("error sending file chunk: %v", errSendFile)
+	// if err != nil {
+	// 	fmt.Printf("error in saving the file locally, %v", err)
+	// 	return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
 	// }
 
-	// }
+	// n.AddFile(fileName)
 
-	// print the success message
-	fmt.Printf("File replicated successfully to %s:%s\n", destinationMachineIP, destinationMachinePort)
+	// return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
+}
 
-	return nil
+// GRPC function to send the file to another data node for replication
+func (n *DataKeeperNode) ReplicateFiles(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+
+	//get the destination machine ip and port
+	destinationMachineIP := req.Ip
+	destinationMachinePort := req.Port
+	fileName := req.FileName
+
+	//connect to the destination machine tcp
+	conn, err := net.Dial("tcp", destinationMachineIP+":"+destinationMachinePort)
+	if err != nil {
+		fmt.Printf("error connecting to the destination machine: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+	defer conn.Close()
+
+	//read the file content
+	fileContent, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		fmt.Printf("error reading the file content: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+
+	//convert the file content to json
+	file := &pb_d.UploadFileRequest{FileName: fileName, FileContent: fileContent}
+
+	serializedFile, err := json.Marshal(file)
+
+	if err != nil {
+		fmt.Printf("error serializing the file: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+
+	//send the file content to the destination machine
+	_, err = conn.Write(serializedFile)
+	if err != nil {
+		fmt.Printf("error sending the file content: %v\n", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
+	}
+
+	return &pb_d.NotifyReplicaResponse{Success: true}, nil
 }

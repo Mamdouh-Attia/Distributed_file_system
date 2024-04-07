@@ -3,7 +3,6 @@ package main
 import (
 	mt "Distributed_file_system/internals/master_tracker/packages"
 	pb "Distributed_file_system/internals/pb/master_node"
-	"fmt"
 	"log"
 	"net"
 	"time"
@@ -12,6 +11,8 @@ import (
 )
 
 func main() {
+
+	//Declarations
 
 	// Set up the master
 	master := mt.NewMaster()
@@ -23,12 +24,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-
 	//register methods
 	//1.RegisterDataNode
 
 	s := grpc.NewServer()
 	pb.RegisterMasterNodeServer(s, master)
+	log.Printf("Master is serving")
 
 	// separate goroutine to handle the heartbeat updates
 	go func() {
@@ -39,23 +40,27 @@ func main() {
 			// }
 			// sleep for 2 second
 			time.Sleep(2 * time.Second)
-			// Remove dead records
-			master.RemoveDeadRecords()
+			// check if the records are alive
+			for i := range master.Records {
+				if master.DataKeeperNodes[master.Records[i].DataKeeperNodeID].Files == nil {
+					// remove the record
+					master.RemoveRecord(master.Records[i].FileName, master.Records[i].DataKeeperNodeID)
+				}
+			}
+
 		}
 	}()
 
-	// A separate thread to handle the replication process every 10 seconds
+	// Make a separate thread to handle the replication process every 10 seconds
 	go func() {
-		fmt.Println("Replication process started")
 		for {
-			// replicate the files
-			fmt.Println("Replicating files")
-			master.ReplicateFiles()
 			// sleep for 10 seconds
 			time.Sleep(10 * time.Second)
+			// replicate the files
+			master.ReplicateFiles()
 		}
 	}()
-	fmt.Println("Master is serving")
+
 	// pb.RegisterHeartbeatUpdateServer(s, master)
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)

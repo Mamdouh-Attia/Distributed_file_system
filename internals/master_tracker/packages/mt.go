@@ -2,7 +2,7 @@ package mt
 
 import (
 	dk "Distributed_file_system/internals/data_keeper_node/packages"
-	// pb_d "Distributed_file_system/internals/pb/data_node"
+	pb_d "Distributed_file_system/internals/pb/data_node"
 	pb_m "Distributed_file_system/internals/pb/master_node"
 	utils "Distributed_file_system/internals/utils"
 	"context"
@@ -236,6 +236,10 @@ func (m *Master) ReplicateFiles() {
 	log.Printf("Replicating files")
 	// define set of distinct files -- extracted from Records
 	distinctFiles := m.getDistinctFiles()
+	if len(distinctFiles) == 0 {
+		log.Printf("No files found for replication")
+		return
+	}
 
 	for file := range distinctFiles {
 
@@ -256,6 +260,15 @@ func (m *Master) ReplicateFiles() {
 		//while the number of data nodes is less than 3, replicate the file
 		for numDataNodes < 3 {
 
+			//get the destination data node machine
+			//returns a valid IP and a valid port of a machine to copy a file instance to.
+			destinationMachine := m.selectDestinationMachine(file)
+			if destinationMachine == nil {
+				log.Printf("No destination machine found for file: %v", file)
+				break
+			}
+			log.Printf("Source: %v will replicate file: %v to destination: %v\n", sourceDataNode, file, destinationMachine)
+
 			//connect to the source data node
 			conn, err := grpc.Dial(fmt.Sprintf("%s:%s", sourceDataNode.IP, sourceDataNode.Port), grpc.WithInsecure())
 			if err != nil {
@@ -265,22 +278,33 @@ func (m *Master) ReplicateFiles() {
 			defer conn.Close()
 			//create a new client
 			// client := pb_d.NewDataNodeClient(conn)
+			//1- notify source data node to replicate the file
+			//2- get the destination data node machine
 
-			//get the destination data node machine
-			//returns a valid IP and a valid port of a machine to copy a file instance to.
-			destinationMachine := m.selectDestinationMachine(file)
-			if destinationMachine == nil {
-				log.Printf("No destination machine found for file: %v", file)
+			//client instance
+			client := pb_d.NewDataNodeClient(conn)
+			//1- notify source data node to replicate the file
+			_, err = client.ReplicateFile(context.Background(), &pb_d.ReplicaRequest{Ip: sourceDataNode.IP, Port: sourceDataNode.Port, FileName: file})
+			if err != nil {
+				log.Printf("Failed to notify the source data node: %v", err)
 				break
 			}
-			log.Printf("Source: %v will replicate file: %v to destination: %v\n", sourceDataNode, file, destinationMachine)
-			// copy the file from the source to the destination machine
-			// errReplica := client.
 
-			// if errReplica != nil {
-			// 	log.Printf("Failed to replicate the file: %v", errReplica)
-			// 	break
-			// }
+			//connect to the destination data node
+			conn, err = grpc.Dial(fmt.Sprintf("%s:%s", destinationMachine.IP, destinationMachine.Port), grpc.WithInsecure())
+			if err != nil {
+				log.Printf("Failed to connect to the destination data node: %v", err)
+				break
+			}
+			defer conn.Close()
+			//create a new client
+			client2 := pb_d.NewDataNodeClient(conn)
+			//2- get the destination data node machine
+			_, err = client2.ReceiveFileForReplica(context.Background(), &pb_d.ReceiveFileForReplicaRequest{Ip: sourceDataNode.IP, Port: sourceDataNode.Port})
+			if err != nil {
+				log.Printf("Failed to notify the destination data node: %v", err)
+				break
+			}
 
 			// update the records of the master
 			m.AddRecord(Record{FileName: file, FilePath: file, alive: true, DataKeeperNodeID: destinationMachine.ID})
@@ -317,6 +341,7 @@ func (m *Master) selectDestinationMachine(file string) *dk.DataKeeperNode {
 		return nil
 	}
 
+	log.Printf("Debug|| Destination Data Nodes: %v", destinationDataNodes)
 	//get the destination data node machine
 	destinationMachine := destinationDataNodes[rand.Intn(len(destinationDataNodes))]
 	return &destinationMachine

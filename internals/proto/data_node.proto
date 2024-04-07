@@ -31,9 +31,10 @@ message FileResponse {
     
 }
 
-message NodeInfo {
+message ReplicaRequest {
     string ip = 1;
-    int32 port = 2;
+    string port = 2;
+    string fileName = 3;
 }
 
 message NotifyReplicaResponse {
@@ -42,11 +43,14 @@ message NotifyReplicaResponse {
 
 message FileChunk {
     bytes data = 1;
-}
+}   
 
 message ReceiveFileForReplicaRequest {
-    bytes fileContent = 1;
-    string fileName = 2;
+    // string fileName = 1;
+    // int64    fileSize = 2;
+    string ip = 1;
+    string port = 2;
+    // bytes fileContent = 5;
 }
 
 message ReceiveFileForReplicaRespone {
@@ -65,9 +69,9 @@ service DataNode {
     // RPC for downloading a file
     rpc DownloadFile(FileRequest) returns (stream FileChunk);
 
-    // RPC for notifying other data nodes that a file will be replicated to
-    rpc NotifyReplica(NodeInfo) returns (NotifyReplicaResponse);
-
-    // RPC for replicating a file (sending a file to another data node)
+    //RPC to notify the data node that a file is being replicated
     rpc ReceiveFileForReplica(ReceiveFileForReplicaRequest) returns (ReceiveFileForReplicaRespone);
+
+    // RPC for sending a file to another data node
+    rpc ReplicateFile(ReplicaRequest) returns (NotifyReplicaResponse);
 }

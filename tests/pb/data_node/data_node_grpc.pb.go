@@ -22,8 +22,8 @@ const (
 	DataNode_UploadFile_FullMethodName            = "/data_node.DataNode/UploadFile"
 	DataNode_GetFileSize_FullMethodName           = "/data_node.DataNode/GetFileSize"
 	DataNode_DownloadFile_FullMethodName          = "/data_node.DataNode/DownloadFile"
-	DataNode_NotifyReplica_FullMethodName         = "/data_node.DataNode/NotifyReplica"
 	DataNode_ReceiveFileForReplica_FullMethodName = "/data_node.DataNode/ReceiveFileForReplica"
+	DataNode_ReplicateFile_FullMethodName         = "/data_node.DataNode/ReplicateFile"
 )
 
 // DataNodeClient is the client API for DataNode service.
@@ -36,10 +36,10 @@ type DataNodeClient interface {
 	GetFileSize(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	// RPC for downloading a file
 	DownloadFile(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (DataNode_DownloadFileClient, error)
-	// RPC for notifying other data nodes that a file will be replicated to
-	NotifyReplica(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*NotifyReplicaResponse, error)
-	// RPC for replicating a file (sending a file to another data node)
+	// RPC to notify the data node that a file is being replicated
 	ReceiveFileForReplica(ctx context.Context, in *ReceiveFileForReplicaRequest, opts ...grpc.CallOption) (*ReceiveFileForReplicaRespone, error)
+	// RPC for sending a file to another data node
+	ReplicateFile(ctx context.Context, in *ReplicaRequest, opts ...grpc.CallOption) (*NotifyReplicaResponse, error)
 }
 
 type dataNodeClient struct {
@@ -100,18 +100,18 @@ func (x *dataNodeDownloadFileClient) Recv() (*FileChunk, error) {
 	return m, nil
 }
 
-func (c *dataNodeClient) NotifyReplica(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*NotifyReplicaResponse, error) {
-	out := new(NotifyReplicaResponse)
-	err := c.cc.Invoke(ctx, DataNode_NotifyReplica_FullMethodName, in, out, opts...)
+func (c *dataNodeClient) ReceiveFileForReplica(ctx context.Context, in *ReceiveFileForReplicaRequest, opts ...grpc.CallOption) (*ReceiveFileForReplicaRespone, error) {
+	out := new(ReceiveFileForReplicaRespone)
+	err := c.cc.Invoke(ctx, DataNode_ReceiveFileForReplica_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *dataNodeClient) ReceiveFileForReplica(ctx context.Context, in *ReceiveFileForReplicaRequest, opts ...grpc.CallOption) (*ReceiveFileForReplicaRespone, error) {
-	out := new(ReceiveFileForReplicaRespone)
-	err := c.cc.Invoke(ctx, DataNode_ReceiveFileForReplica_FullMethodName, in, out, opts...)
+func (c *dataNodeClient) ReplicateFile(ctx context.Context, in *ReplicaRequest, opts ...grpc.CallOption) (*NotifyReplicaResponse, error) {
+	out := new(NotifyReplicaResponse)
+	err := c.cc.Invoke(ctx, DataNode_ReplicateFile_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,10 +128,10 @@ type DataNodeServer interface {
 	GetFileSize(context.Context, *FileRequest) (*FileResponse, error)
 	// RPC for downloading a file
 	DownloadFile(*FileRequest, DataNode_DownloadFileServer) error
-	// RPC for notifying other data nodes that a file will be replicated to
-	NotifyReplica(context.Context, *NodeInfo) (*NotifyReplicaResponse, error)
-	// RPC for replicating a file (sending a file to another data node)
+	// RPC to notify the data node that a file is being replicated
 	ReceiveFileForReplica(context.Context, *ReceiveFileForReplicaRequest) (*ReceiveFileForReplicaRespone, error)
+	// RPC for sending a file to another data node
+	ReplicateFile(context.Context, *ReplicaRequest) (*NotifyReplicaResponse, error)
 	mustEmbedUnimplementedDataNodeServer()
 }
 
@@ -148,11 +148,11 @@ func (UnimplementedDataNodeServer) GetFileSize(context.Context, *FileRequest) (*
 func (UnimplementedDataNodeServer) DownloadFile(*FileRequest, DataNode_DownloadFileServer) error {
 	return status.Errorf(codes.Unimplemented, "method DownloadFile not implemented")
 }
-func (UnimplementedDataNodeServer) NotifyReplica(context.Context, *NodeInfo) (*NotifyReplicaResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method NotifyReplica not implemented")
-}
 func (UnimplementedDataNodeServer) ReceiveFileForReplica(context.Context, *ReceiveFileForReplicaRequest) (*ReceiveFileForReplicaRespone, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReceiveFileForReplica not implemented")
+}
+func (UnimplementedDataNodeServer) ReplicateFile(context.Context, *ReplicaRequest) (*NotifyReplicaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReplicateFile not implemented")
 }
 func (UnimplementedDataNodeServer) mustEmbedUnimplementedDataNodeServer() {}
 
@@ -224,24 +224,6 @@ func (x *dataNodeDownloadFileServer) Send(m *FileChunk) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _DataNode_NotifyReplica_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(NodeInfo)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DataNodeServer).NotifyReplica(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DataNode_NotifyReplica_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DataNodeServer).NotifyReplica(ctx, req.(*NodeInfo))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _DataNode_ReceiveFileForReplica_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReceiveFileForReplicaRequest)
 	if err := dec(in); err != nil {
@@ -256,6 +238,24 @@ func _DataNode_ReceiveFileForReplica_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataNodeServer).ReceiveFileForReplica(ctx, req.(*ReceiveFileForReplicaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataNode_ReplicateFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReplicaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataNodeServer).ReplicateFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DataNode_ReplicateFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataNodeServer).ReplicateFile(ctx, req.(*ReplicaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -276,12 +276,12 @@ var DataNode_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DataNode_GetFileSize_Handler,
 		},
 		{
-			MethodName: "NotifyReplica",
-			Handler:    _DataNode_NotifyReplica_Handler,
-		},
-		{
 			MethodName: "ReceiveFileForReplica",
 			Handler:    _DataNode_ReceiveFileForReplica_Handler,
+		},
+		{
+			MethodName: "ReplicateFile",
+			Handler:    _DataNode_ReplicateFile_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -48,7 +48,7 @@ func main() {
 			fmt.Printf("Error while uploading the file: %v\n", uploadErr)
 		}
 	case "d":
-		
+		Client.DownloadFile(masterClient, os.Args[2])
 	default:
 		fmt.Printf("Usage: %v <u/d> <filename>\n", os.Args[0])
 	}
