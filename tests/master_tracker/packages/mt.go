@@ -46,6 +46,10 @@ func NewMaster() *Master {
 func (m *Master) AddRecord(record Record) {
 	m.Records = append(m.Records, record)
 }
+func (mt *Master) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
+	// return
+	return &pb_d.NotifyReplicaResponse{Success: true}, nil
+}
 
 // RemoveRecord removes a record from the master
 // optional parameters to remove a record either by filename or by datakeeper node
@@ -245,10 +249,6 @@ func (m *Master) UploadNotification(ctx context.Context, notification *pb_m.Uplo
 
 	return &pb_m.UploadNotificationResponse{Success: true}, nil
 }
-func (m *Master) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*pb_d.NotifyReplicaResponse, error) {
-	// return
-	return &pb_d.NotifyReplicaResponse{Success: true}, nil
-}
 
 //// Replication functions //////
 
@@ -312,6 +312,9 @@ func (m *Master) ReplicateFiles() {
 				log.Printf("Failed to notify the source data node: %v", err)
 				break
 			}
+			//print the destination machine
+			log.Printf("Destination Machine: %v", destinationMachine.IP)
+			log.Printf("Destination Machine: %v", destinationMachine.Port)
 
 			//connect to the destination data node
 			conn2, err := grpc.Dial(fmt.Sprintf("%s:%s", destinationMachine.IP, destinationMachine.Port), grpc.WithInsecure())
