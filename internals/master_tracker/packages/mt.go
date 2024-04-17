@@ -234,7 +234,7 @@ func (m *Master) AskForUpload(ctx context.Context, req *pb_m.Empty) (*pb_m.AskFo
 	dataKeeperNodeID := m.DataKeeperNodes[rand.Intn(len(m.DataKeeperNodes))]
 
 	// return the datakeeper node to the client
-	return &pb_m.AskForUploadResponse{Port: dataKeeperNodeID.Port}, nil
+	return &pb_m.AskForUploadResponse{Port: dataKeeperNodeID.Port, Ip: dataKeeperNodeID.IP}, nil
 }
 
 // grpc function to handle the notification from the dataNode when the uploading is done
