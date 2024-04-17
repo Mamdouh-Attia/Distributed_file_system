@@ -100,37 +100,38 @@ func OpenFileFromDirectory(dir string, filename string) (*os.File, error) {
 func ReceiveTCP(ip string, port string) ([]byte, error) {
 
 	//create a listener
-		listener, err := net.Listen("tcp", ip+":"+port)
-		if err != nil {
-			fmt.Printf("error creating listener: %v\n", err)
-			return nil, err
-		}
-		defer listener.Close()
-		fmt.Print("Listening on port: " + port + "\n")
-		//accept the connection
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Printf("error accepting connection: %v\n", err)
-			return nil, err
-		}
-		defer conn.Close()
+	listener, err := net.Listen("tcp", ip+":"+port)
+	if err != nil {
+		fmt.Printf("error creating listener: %v\n", err)
+		return nil, err
+	}
+	defer listener.Close()
+	fmt.Print("Listening on " + ip + ":" + port + "\n")
+	//accept the connection
+	conn, err := listener.Accept()
+	if err != nil {
+		fmt.Printf("error accepting connection: %v\n", err)
+		return nil, err
+	}
+	defer conn.Close()
 
-		fmt.Print("Accepted connection\n")
+	fmt.Print("Accepted connection\n")
 
-		//Read the data
-		data, err := ioutil.ReadAll(conn)
+	//Read the data
+	data, err := ioutil.ReadAll(conn)
 
-		if err != nil {
-			fmt.Printf("error reading the file content: %v\n", err)
-			return nil, err
-		}
+	if err != nil {
+		fmt.Printf("error reading the file content: %v\n", err)
+		return nil, err
+	}
 
-		return data, nil
+	return data, nil
 }
 
 
 func SendTCP(ip string, port string) (net.Conn, error) {
 	conn, errConn := net.Dial("tcp", ip+":"+port)
+	fmt.Print("Connected to " + ip + ":" + port + "\n")
 
 	if errConn != nil {
 		fmt.Printf("Failed to connect to server: %v", errConn)
@@ -165,7 +166,7 @@ func Deserialize(data []byte, file any, fileName string, fileContent []byte) err
 		return err
 	}
 	
-	print(data)
+	print("FileName: ", fileName)
 
 	// store the file content in the local file
 	err = ioutil.WriteFile(fileName, fileContent, 0644)

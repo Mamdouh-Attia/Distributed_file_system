@@ -107,16 +107,18 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 	// Convert port number back to string
 	portStr := fmt.Sprint(portNum)
 	
+	fmt.Print("IP:Port: ", uploadIP, ":", portStr, "\n")
 	//grpc call the client
 	_, errUpload := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: portStr, FileContent: data})
 
+	
 	if errUpload != nil {
 		fmt.Printf("Failed to upload the file: %v", errUpload)
 		return errUpload
 	}
 
 	// connect to the datakeeper node as TCP
-	tcpConn, errTcpConn := utils.SendTCP(uploadIP, uploadPort)
+	tcpConn, errTcpConn := utils.SendTCP(uploadIP, portStr)
 
 	if errTcpConn != nil {
 		return errTcpConn
@@ -125,7 +127,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 
 	//convert file to bytes
 	//instantiate request
-	request := &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: uploadPort, FileContent: data}
+	request := &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: portStr, FileContent: data}
 
 	//serialize the request
 	errSerialize := utils.Serialize(request, tcpConn)

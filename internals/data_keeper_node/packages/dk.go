@@ -83,18 +83,18 @@ func (n *DataKeeperNode) GetFileByName(filename string) string {
 func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error) {
 
 	fileName := req.FileName
-	clintIp := req.Ip
-	clintPort := req.Port
+	clientIp := req.Ip
+	clientPort := req.Port
 
 
 	go func() {
 
-		data, err := utils.ReceiveTCP(clintIp, clintPort)
+		data, err := utils.ReceiveTCP(clientIp, clientPort)
 
 		if err != nil {
 			return
 		}
-
+		
 
 		receivedFile := &pb_d.UploadFileRequest{}
 		
