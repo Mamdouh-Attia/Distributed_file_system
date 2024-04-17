@@ -3,6 +3,7 @@ package dk
 import (
 	pb_d "Distributed_file_system/internals/pb/data_node"
 	pb_m "Distributed_file_system/internals/pb/master_node"
+	"Distributed_file_system/internals/utils"
 	"encoding/json"
 	"io/ioutil"
 	"net"
@@ -84,47 +85,22 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 	fileName := req.FileName
 	clintIp := req.Ip
 	clintPort := req.Port
-	//convert the file size from string to int64
-	// fileSize := req.FileSize
-	//Listen to the client
+
 
 	go func() {
-		//create a listener
-		listener, err := net.Listen("tcp", clintIp+":"+clintPort)
-		if err != nil {
-			fmt.Printf("error creating listener: %v\n", err)
-			return
-		}
-		defer listener.Close()
 
-		//accept the connection
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Printf("error accepting connection: %v\n", err)
-			return
-		}
-		defer conn.Close()
-
-		//Read the data
-		data, err := ioutil.ReadAll(conn)
+		data, err := utils.ReceiveTCP(clintIp, clintPort)
 
 		if err != nil {
-			fmt.Printf("error reading the file content: %v\n", err)
 			return
 		}
+
 
 		receivedFile := &pb_d.UploadFileRequest{}
-		err = json.Unmarshal(data, receivedFile)
-		if err != nil {
-			fmt.Println("Error decoding file:", err)
-			return
-		}
-		print(data)
+		
+		err = utils.Deserialize(data, receivedFile, receivedFile.FileName, receivedFile.FileContent) 
 
-		// store the file content in the local file
-		err = ioutil.WriteFile(receivedFile.FileName, receivedFile.FileContent, 0644)
 		if err != nil {
-			fmt.Printf("error saving the file: %v\n", err)
 			return
 		}
 
@@ -270,20 +246,6 @@ func (n *DataKeeperNode) ReceiveFileForReplicaHandler(conn net.Conn) {
 		fmt.Printf("error saving the file: %v\n", err)
 	}
 
-	// fileName := req.FileName
-	// fileContent := req.FileContent
-	// fmt.Printf("Received request to replicate file: %s\n", fileName)
-
-	// err := utils.SaveFile(fileName, []byte(fileContent))
-
-	// if err != nil {
-	// 	fmt.Printf("error in saving the file locally, %v", err)
-	// 	return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
-	// }
-
-	// n.AddFile(fileName)
-
-	// return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
 }
 
 // GRPC function to send the file to another data node for replication
@@ -296,17 +258,17 @@ func (n *DataKeeperNode) ReplicateFile(ctx context.Context, req *pb_d.ReplicaReq
 	rand_seed := req.PortRandomSeed
 
 	//change port
-	var portNum int
-	var portStr string
-	_, err := fmt.Sscan(sourcePort, &portNum) // Handle potential parsing errors
+	portNum, err := utils.ConvertStrIntoInt(sourcePort)
+	
 	if err != nil {
-		log.Printf("Failed to parse port number: %v", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
 	}
+
 	portNum += int(rand_seed)
 
 	log.Println("From replicate file: port number: ", portNum)
 	// Convert port number back to string
-	portStr = fmt.Sprint(portNum)
+	portStr := fmt.Sprint(portNum)
 
 	//connect to the destination machine tcp
 	conn, err := net.Dial("tcp", sourceIP+":"+portStr)

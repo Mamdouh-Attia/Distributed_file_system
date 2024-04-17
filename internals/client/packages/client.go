@@ -1,11 +1,9 @@
 package client
 
 import (
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 
 	"context"
@@ -13,6 +11,7 @@ import (
 
 	pb_d "Distributed_file_system/internals/pb/data_node"
 	pb_m "Distributed_file_system/internals/pb/master_node"
+	"Distributed_file_system/internals/utils"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -99,17 +98,15 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 	}
 
 	//
-	var portNum int
-	var portStr string
-	_, err = fmt.Sscan(uploadPort, &portNum) // Handle potential parsing errors
+	portNum, err := utils.ConvertStrIntoInt(uploadPort) 
 	if err != nil {
-		log.Printf("Failed to parse port number: %v", err)
+		return err
 	}
 	portNum += 10
 
 	// Convert port number back to string
-	portStr = fmt.Sprint(portNum)
-
+	portStr := fmt.Sprint(portNum)
+	
 	//grpc call the client
 	_, errUpload := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: portStr, FileContent: data})
 
@@ -117,32 +114,24 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 		fmt.Printf("Failed to upload the file: %v", errUpload)
 		return errUpload
 	}
-	// connect to the datakeeper node as TCP
-	conn2, errConn2 := net.Dial("tcp", uploadIP+":"+portStr)
 
-	if errConn2 != nil {
-		fmt.Printf("Failed to connect to server: %v", errConn2)
-		return errConn2
+	// connect to the datakeeper node as TCP
+	tcpConn, errTcpConn := utils.SendTCP(uploadIP, uploadPort)
+
+	if errTcpConn != nil {
+		return errTcpConn
 	}
-	defer conn2.Close()
+	defer tcpConn.Close()
 
 	//convert file to bytes
 	//instantiate request
 	request := &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: uploadPort, FileContent: data}
 
 	//serialize the request
-	serializedRequest, errSerialize := json.Marshal(request)
+	errSerialize := utils.Serialize(request, tcpConn)
 
-	if errSerialize != nil {
-		fmt.Printf("Failed to serialize the request: %v", errSerialize)
-		return errSerialize
-	}
 
-	conn2.Write(serializedRequest)
-
-	fmt.Println("File uploaded successfully")
-
-	return nil
+	return errSerialize
 }
 
 func (c *Client) DownloadFile(masterClient pb_m.MasterNodeClient, filename string) error {
