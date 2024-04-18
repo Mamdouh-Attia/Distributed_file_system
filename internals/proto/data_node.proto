@@ -12,8 +12,7 @@ message FileRequest {
 
 message UploadFileRequest {
     string fileName = 1;
-    int64    fileSize = 2;
-    string ip = 3;
+    int64  fileSize = 2;
     string port = 4;
     bytes fileContent = 5;
 }
@@ -59,13 +58,21 @@ message ReceiveFileForReplicaRespone {
     bool success = 1;
 }
 
+message AskForFreePortResponse {
+    string port = 1;
+}
+
+message AskForFreePortRequest {
+    
+}
 
 service DataNode {
     
     // Receive the file from the client
     rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
 
-
+    // Ask for upload port
+    rpc AskForFreePort(AskForFreePortRequest) returns (AskForFreePortResponse);
 
     // RPC for getting the file size
     rpc GetFileSize(FileRequest) returns (FileResponse);

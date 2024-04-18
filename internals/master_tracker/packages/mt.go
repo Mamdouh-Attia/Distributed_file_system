@@ -234,33 +234,8 @@ func (m *Master) AskForUpload(ctx context.Context, req *pb_m.Empty) (*pb_m.AskFo
 	// Choose a random datakeeper node to store the file
 	dataKeeperNode := m.DataKeeperNodes[rand.Intn(len(m.DataKeeperNodes))]
 
-	portAsInt, errConvert := utils.ConvertStrIntoInt(dataKeeperNode.Port)
 
-	if errConvert != nil {
-		return &pb_m.AskForUploadResponse{Port: "", Ip: ""}, errConvert
-	}
-
-	// convert the port into integer to add random value for getting an empty port
-	portAsInt += rand.Intn(1000)
-	listeningPort := fmt.Sprint(portAsInt)
-
-
-	// // Ask the datakeeper node to start listening for tcp connection
-	// conn, err := grpc.Dial(dataKeeperNode.IP + ":" + dataKeeperNode.Port, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	// if err != nil {
-	// 	fmt.Print("Failed to connect to the datakeeper node")
-	// 	return &pb_m.AskForUploadResponse{Port: "", Ip: ""}, err
-	// }
-	// defer conn.Close()
-
-	// // create a client
-	// dataKeeperNodeClient := pb_d.NewDataNodeClient(conn)
-
-	// go dataKeeperNodeClient.StartListeningForTCP(context.Background(), &pb_d.StartListeningForTCPRequest{Port: listeningPort})
-
-	// return the datakeeper node to the client
-	return &pb_m.AskForUploadResponse{Port: listeningPort, Ip: dataKeeperNode.IP}, nil
+	return &pb_m.AskForUploadResponse{Port: dataKeeperNode.Port, Ip: dataKeeperNode.IP}, nil
 }
 
 // grpc function to handle the notification from the dataNode when the uploading is done
@@ -268,10 +243,22 @@ func (m *Master) UploadNotification(ctx context.Context, notification *pb_m.Uplo
 
 	newRecord := Record{FileName: notification.NewRecord.FileName, FilePath: notification.NewRecord.FilePath, alive: true, DataKeeperNodeID: int(notification.NewRecord.DataKeeperNodeID)}
 
-	m.Records = append(m.Records, newRecord)
+	successUpload := notification.SuccessUpload
 
-	// print the file name in the records of the master
-	fmt.Printf("Master: File %v is uploaded to DataKeeperNode: %v\n", notification.NewRecord.FileName, notification.NewRecord.DataKeeperNodeID)
+	if successUpload {
+		m.Records = append(m.Records, newRecord)
+		
+		// print the file name in the records of the master
+		fmt.Printf("Master: File %v is uploaded to DataKeeperNode: %v\n", notification.NewRecord.FileName, notification.NewRecord.DataKeeperNodeID)
+
+	} else {
+
+		m.RemoveRecord(notification.NewRecord.FileName, int(notification.NewRecord.DataKeeperNodeID))
+
+
+		fmt.Printf("Master: File %v is removed\n", notification.NewRecord.FileName)
+	}
+
 
 	return &pb_m.UploadNotificationResponse{Success: true}, nil
 }

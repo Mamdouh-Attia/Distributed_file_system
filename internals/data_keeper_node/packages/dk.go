@@ -36,6 +36,7 @@ type DataKeeperNode struct {
 	IP    string   // IP address of the node
 	Port  string   // Port number the node is listening on
 	Files []string // List of filenames stored on the node
+	currBusyPorts int // a number indicating the current busy ports 
 }
 
 // NewDataKeeperNode creates a new DataKeeperNode instance with the provided parameters.
@@ -106,34 +107,28 @@ func (n *DataKeeperNode) GetFileByName(filename string) string {
 	
 // }
 
+
+// grpc function to send the current free port
+func (n* DataKeeperNode) AskForFreePort(ctx context.Context, req* pb_d.AskForFreePortRequest) (*pb_d.AskForFreePortResponse, error) {
+	n.currBusyPorts += 1
+	portNum, errConv  := utils.ConvertStrIntoInt(n.Port)
+
+	if errConv != nil {
+		fmt.Print("Error converting the port into an integer")
+		return &pb_d.AskForFreePortResponse{Port: ""}, errConv
+	}
+
+	portNum += n.currBusyPorts
+
+	return &pb_d.AskForFreePortResponse{Port: fmt.Sprint(portNum)}, nil
+}
+
 // grpc function to receive the uploaded file from the client
 func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error) {
-
-	fileName := req.FileName
-	clientIp := req.Ip
-	clientPort := req.Port
-
-	go func() bool {
-
-		conn, err := utils.ReceiveTCP(clientIp, clientPort)
-
-		if err != nil {
-			return false
-		}
-
-		
-		
-		err = utils.Deserialize(data, true) 
-
-		if err != nil {
-			return false
-		}
-
-		return true
-	}()
-
-	n.AddFile(fileName)
+	
 	connMaster, errConn := n.ConnectToServer(defaultAdress)
+
+	masterClient := pb_m.NewMasterNodeClient(connMaster)
 
 	if errConn != nil {
 		fmt.Printf("error connecting to the master: %v\n", errConn)
@@ -142,18 +137,62 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 
 	defer connMaster.Close()
 
-	masterClient := pb_m.NewMasterNodeClient(connMaster)
+	fileName := req.FileName
+	listeningIp := n.IP
+	listeningPort := req.Port
 
-	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}, SuccessUpload: true})
+	newRecord := &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}
+
+	fmt.Print("Uploading ....\n")
+	go func() error {
+		
+		n.currBusyPorts -= 1
+		conn, err := utils.ReceiveTCP(listeningIp, listeningPort)
+
+		if err != nil {
+
+			fmt.Printf("error in establishing tcp connection: %v\n", err)
+			_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: false})
+			return notificationErr
+		}
+
+		
+		// Read the data
+		data, readContentErr := ioutil.ReadAll(conn)
+
+		if readContentErr != nil {
+			fmt.Printf("error reading the file content: %v\n", readContentErr)
+			_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: false})
+			return notificationErr
+		}
+
+		deserializeError := utils.Deserialize(data, true) 
+
+		
+		if deserializeError != nil {
+			
+			fmt.Printf("error in deserializing the file content: %v\n", deserializeError)
+			_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: false})
+			return notificationErr
+		}
+
+		n.AddFile(fileName)
+
+		return  nil
+	}()
+
+
+	
+	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: true})
 
 	if notificationErr != nil {
 		fmt.Printf("Failed to notify the master: %v\n", notificationErr)
 		return &pb_d.UploadFileResponse{Success: false}, notificationErr
 	}
 
-	return &pb_d.UploadFileResponse{Success: true}, nil
 
-	
+
+	return &pb_d.UploadFileResponse{Success: true}, nil
 }
 
 // GetFiles returns the list of files stored on the node.

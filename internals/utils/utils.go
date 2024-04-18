@@ -99,7 +99,7 @@ func OpenFileFromDirectory(dir string, filename string) (*os.File, error) {
 
 // TCP Listener connection
 func ReceiveTCP(ip string, port string) (net.Conn, error) {
-
+	
 	//create a listener
 	listener, err := net.Listen("tcp", ip+":"+port)
 	if err != nil {

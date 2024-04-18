@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	DataNode_UploadFile_FullMethodName            = "/data_node.DataNode/UploadFile"
+	DataNode_AskForFreePort_FullMethodName        = "/data_node.DataNode/AskForFreePort"
 	DataNode_GetFileSize_FullMethodName           = "/data_node.DataNode/GetFileSize"
 	DataNode_DownloadFile_FullMethodName          = "/data_node.DataNode/DownloadFile"
 	DataNode_ReceiveFileForReplica_FullMethodName = "/data_node.DataNode/ReceiveFileForReplica"
@@ -32,6 +33,8 @@ const (
 type DataNodeClient interface {
 	// Receive the file from the client
 	UploadFile(ctx context.Context, in *UploadFileRequest, opts ...grpc.CallOption) (*UploadFileResponse, error)
+	// Ask for upload port
+	AskForFreePort(ctx context.Context, in *AskForFreePortRequest, opts ...grpc.CallOption) (*AskForFreePortResponse, error)
 	// RPC for getting the file size
 	GetFileSize(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	// RPC for downloading a file
@@ -53,6 +56,15 @@ func NewDataNodeClient(cc grpc.ClientConnInterface) DataNodeClient {
 func (c *dataNodeClient) UploadFile(ctx context.Context, in *UploadFileRequest, opts ...grpc.CallOption) (*UploadFileResponse, error) {
 	out := new(UploadFileResponse)
 	err := c.cc.Invoke(ctx, DataNode_UploadFile_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataNodeClient) AskForFreePort(ctx context.Context, in *AskForFreePortRequest, opts ...grpc.CallOption) (*AskForFreePortResponse, error) {
+	out := new(AskForFreePortResponse)
+	err := c.cc.Invoke(ctx, DataNode_AskForFreePort_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +136,8 @@ func (c *dataNodeClient) ReplicateFile(ctx context.Context, in *ReplicaRequest, 
 type DataNodeServer interface {
 	// Receive the file from the client
 	UploadFile(context.Context, *UploadFileRequest) (*UploadFileResponse, error)
+	// Ask for upload port
+	AskForFreePort(context.Context, *AskForFreePortRequest) (*AskForFreePortResponse, error)
 	// RPC for getting the file size
 	GetFileSize(context.Context, *FileRequest) (*FileResponse, error)
 	// RPC for downloading a file
@@ -141,6 +155,9 @@ type UnimplementedDataNodeServer struct {
 
 func (UnimplementedDataNodeServer) UploadFile(context.Context, *UploadFileRequest) (*UploadFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UploadFile not implemented")
+}
+func (UnimplementedDataNodeServer) AskForFreePort(context.Context, *AskForFreePortRequest) (*AskForFreePortResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AskForFreePort not implemented")
 }
 func (UnimplementedDataNodeServer) GetFileSize(context.Context, *FileRequest) (*FileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFileSize not implemented")
@@ -181,6 +198,24 @@ func _DataNode_UploadFile_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DataNodeServer).UploadFile(ctx, req.(*UploadFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataNode_AskForFreePort_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AskForFreePortRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataNodeServer).AskForFreePort(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DataNode_AskForFreePort_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataNodeServer).AskForFreePort(ctx, req.(*AskForFreePortRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -270,6 +305,10 @@ var DataNode_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UploadFile",
 			Handler:    _DataNode_UploadFile_Handler,
+		},
+		{
+			MethodName: "AskForFreePort",
+			Handler:    _DataNode_AskForFreePort_Handler,
 		},
 		{
 			MethodName: "GetFileSize",

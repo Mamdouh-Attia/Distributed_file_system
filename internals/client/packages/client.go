@@ -49,7 +49,7 @@ func (m *Client) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*
 }
 func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename string) error {
 
-	uploadPort, uploadIP, errGettingPort := c.AskForUpload(master)
+	nodePort, nodeIP, errGettingPort := c.AskForUpload(master)
 
 	if errGettingPort != nil {
 		fmt.Printf("Failed to get the upload port: %v\n", errGettingPort)
@@ -57,7 +57,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 	}
 
 	// connect to the datakeeper node
-	dataConn, errDataConn := c.ConnectToServer(uploadIP + ":" + uploadPort)
+	dataConn, errDataConn := c.ConnectToServer(nodeIP + ":" + nodePort)
 
 	if errDataConn != nil {
 		fmt.Printf("Failed to connect to server: %v", errDataConn)
@@ -68,7 +68,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 
 	// create a client
 	dataNodeClient := pb_d.NewDataNodeClient(dataConn)
-	log.Printf("Connected to datakeeper node: %v\n", uploadPort)
+	log.Printf("Connected to datakeeper node: %v\n", nodePort)
 
 	// open the file
 	file, errOpenFile := os.Open(filename)
@@ -97,29 +97,24 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 		return err
 	}
 
-	//
-	portNum, err := utils.ConvertStrIntoInt(uploadPort) 
-	if err != nil {
-		return err
+	uploadPortResponse, errPortRequest := dataNodeClient.AskForFreePort(context.Background(), &pb_d.AskForFreePortRequest{})
+
+	if errPortRequest != nil {
+		fmt.Print("Error getting the free port for uploading")
+		return errPortRequest
 	}
-	portNum += 10
 
-	// Convert port number back to string
-	portStr := fmt.Sprint(portNum)
-	
-	fmt.Print("IP:Port: ", uploadIP, ":", portStr, "\n")
+	uploadPort := uploadPortResponse.Port
+	// grpc call the client
+	_, errUpload := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Port: uploadPort, FileContent: data})
 
-	//grpc call the client
-	_, errUpload := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: portStr, FileContent: data})
-
-	fmt.Print("Uploaded file\n")
 	if errUpload != nil {
 		fmt.Printf("Failed to upload the file: %v", errUpload)
 		return errUpload
 	}
 
 	// connect to the datakeeper node as TCP
-	tcpConn, errTcpConn := utils.SendTCP(uploadIP, portStr)
+	tcpConn, errTcpConn := utils.SendTCP(nodeIP, uploadPort)
 
 	if errTcpConn != nil {
 		return errTcpConn
@@ -128,7 +123,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 
 	//convert file to bytes
 	//instantiate request
-	request := &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: portStr, FileContent: data}
+	request := &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Port: uploadPort, FileContent: data}
 
 	//serialize the request
 	errSerialize := utils.Serialize(request, tcpConn)
