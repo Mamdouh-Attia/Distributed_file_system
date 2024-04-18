@@ -152,8 +152,8 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 		if err != nil {
 
 			fmt.Printf("error in establishing tcp connection: %v\n", err)
-			_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: false})
-			return notificationErr
+
+			return err
 		}
 
 		
@@ -162,8 +162,7 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 
 		if readContentErr != nil {
 			fmt.Printf("error reading the file content: %v\n", readContentErr)
-			_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: false})
-			return notificationErr
+			return readContentErr
 		}
 
 		deserializeError := utils.Deserialize(data, true) 
@@ -172,24 +171,21 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 		if deserializeError != nil {
 			
 			fmt.Printf("error in deserializing the file content: %v\n", deserializeError)
-			_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: false})
-			return notificationErr
+
+			return deserializeError
+		}
+
+		_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord})
+
+		if notificationErr != nil {
+			fmt.Printf("Failed to notify the master: %v\n", notificationErr)
+			return  notificationErr
 		}
 
 		n.AddFile(fileName)
 
 		return  nil
 	}()
-
-
-	
-	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord, SuccessUpload: true})
-
-	if notificationErr != nil {
-		fmt.Printf("Failed to notify the master: %v\n", notificationErr)
-		return &pb_d.UploadFileResponse{Success: false}, notificationErr
-	}
-
 
 
 	return &pb_d.UploadFileResponse{Success: true}, nil

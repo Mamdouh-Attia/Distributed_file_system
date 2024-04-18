@@ -243,21 +243,11 @@ func (m *Master) UploadNotification(ctx context.Context, notification *pb_m.Uplo
 
 	newRecord := Record{FileName: notification.NewRecord.FileName, FilePath: notification.NewRecord.FilePath, alive: true, DataKeeperNodeID: int(notification.NewRecord.DataKeeperNodeID)}
 
-	successUpload := notification.SuccessUpload
+	m.Records = append(m.Records, newRecord)
+	
+	// print the file name in the records of the master
+	fmt.Printf("Master: File %v is uploaded to DataKeeperNode: %v\n", notification.NewRecord.FileName, notification.NewRecord.DataKeeperNodeID)
 
-	if successUpload {
-		m.Records = append(m.Records, newRecord)
-		
-		// print the file name in the records of the master
-		fmt.Printf("Master: File %v is uploaded to DataKeeperNode: %v\n", notification.NewRecord.FileName, notification.NewRecord.DataKeeperNodeID)
-
-	} else {
-
-		m.RemoveRecord(notification.NewRecord.FileName, int(notification.NewRecord.DataKeeperNodeID))
-
-
-		fmt.Printf("Master: File %v is removed\n", notification.NewRecord.FileName)
-	}
 
 
 	return &pb_m.UploadNotificationResponse{Success: true}, nil

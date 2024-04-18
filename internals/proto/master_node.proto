@@ -70,7 +70,6 @@ message HeartbeatUpdateResponse {
 
 message UploadNotificationRequest {
     Record newRecord = 1;
-    bool success_upload = 2;
 }
 
 message UploadNotificationResponse {
