@@ -108,10 +108,11 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 	portStr := fmt.Sprint(portNum)
 	
 	fmt.Print("IP:Port: ", uploadIP, ":", portStr, "\n")
+
 	//grpc call the client
 	_, errUpload := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Ip: uploadIP, Port: portStr, FileContent: data})
 
-	
+	fmt.Print("Uploaded file\n")
 	if errUpload != nil {
 		fmt.Printf("Failed to upload the file: %v", errUpload)
 		return errUpload

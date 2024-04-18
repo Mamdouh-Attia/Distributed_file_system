@@ -2,6 +2,7 @@
 package utils
 
 import (
+	pb_d "Distributed_file_system/internals/pb/data_node"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -97,7 +98,7 @@ func OpenFileFromDirectory(dir string, filename string) (*os.File, error) {
 
 
 // TCP Listener connection
-func ReceiveTCP(ip string, port string) ([]byte, error) {
+func ReceiveTCP(ip string, port string) (net.Conn, error) {
 
 	//create a listener
 	listener, err := net.Listen("tcp", ip+":"+port)
@@ -106,6 +107,8 @@ func ReceiveTCP(ip string, port string) ([]byte, error) {
 		return nil, err
 	}
 	defer listener.Close()
+
+	
 	fmt.Print("Listening on " + ip + ":" + port + "\n")
 	//accept the connection
 	conn, err := listener.Accept()
@@ -113,24 +116,14 @@ func ReceiveTCP(ip string, port string) ([]byte, error) {
 		fmt.Printf("error accepting connection: %v\n", err)
 		return nil, err
 	}
-	defer conn.Close()
 
-	fmt.Print("Accepted connection\n")
-
-	//Read the data
-	data, err := ioutil.ReadAll(conn)
-
-	if err != nil {
-		fmt.Printf("error reading the file content: %v\n", err)
-		return nil, err
-	}
-
-	return data, nil
+	return conn, nil
 }
 
 
 func SendTCP(ip string, port string) (net.Conn, error) {
 	conn, errConn := net.Dial("tcp", ip+":"+port)
+
 	fmt.Print("Connected to " + ip + ":" + port + "\n")
 
 	if errConn != nil {
@@ -158,18 +151,22 @@ func Serialize(request any, conn net.Conn) error {
 }
 
 // Deserialize the response received 
-func Deserialize(data []byte, file any, fileName string, fileContent []byte) error {
-	fmt.Print("Test 1\n")
+func Deserialize(data []byte, upload bool) error {
+	
+	file := &pb_d.UploadFileRequest{}
+	if !upload {
+		file = &pb_d.UploadFileRequest{}
+	} 
 	err := json.Unmarshal(data, file)
 	if err != nil {
 		fmt.Println("Error decoding file:", err)
 		return err
 	}
 	
-	print("FileName: ", fileName)
+	print("FileName: ", file.FileName)
 
 	// store the file content in the local file
-	err = ioutil.WriteFile(fileName, fileContent, 0644)
+	err = ioutil.WriteFile(file.FileName, file.FileContent, 0644)
 	if err != nil {
 		fmt.Printf("error saving the file: %v\n", err)
 		return err

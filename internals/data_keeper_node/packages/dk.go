@@ -79,6 +79,33 @@ func (n *DataKeeperNode) GetFileByName(filename string) string {
 	return ""
 }
 
+// grpc function to start listening for tcp connections
+// func (n *DataKeeperNode) StartListeningForTCP(ctx context.Context, req *pb_d.StartListeningForTCPRequest) (*pb_d.StartListeningForTCPResponse, error) {
+	
+// 	port := req.Port
+	
+// 	listener, err := net.Listen("tcp", n.IP+":"+port)
+// 	if err != nil {
+// 		fmt.Printf("error creating listener: %v\n", err)
+// 		return &pb_d.StartListeningForTCPResponse{Success: false}, err
+// 	}
+
+// 	defer listener.Close()
+
+	
+// 	conn, err := listener.Accept()
+// 	if err != nil {
+// 		fmt.Printf("error accepting connection: %v\n", err)
+// 		return &pb_d.StartListeningForTCPResponse{Success: false}, err
+// 	}
+
+// 	defer conn.Close()
+
+// 	// Handle the incoming connection
+// 	// go n.HandleConnection(conn)
+	
+// }
+
 // grpc function to receive the uploaded file from the client
 func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error) {
 
@@ -86,24 +113,23 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 	clientIp := req.Ip
 	clientPort := req.Port
 
+	go func() bool {
 
-	go func() {
-
-		data, err := utils.ReceiveTCP(clientIp, clientPort)
-
-		if err != nil {
-			return
-		}
-		
-
-		receivedFile := &pb_d.UploadFileRequest{}
-		
-		err = utils.Deserialize(data, receivedFile, receivedFile.FileName, receivedFile.FileContent) 
+		conn, err := utils.ReceiveTCP(clientIp, clientPort)
 
 		if err != nil {
-			return
+			return false
 		}
 
+		
+		
+		err = utils.Deserialize(data, true) 
+
+		if err != nil {
+			return false
+		}
+
+		return true
 	}()
 
 	n.AddFile(fileName)
@@ -118,7 +144,7 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 
 	masterClient := pb_m.NewMasterNodeClient(connMaster)
 
-	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}})
+	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}, SuccessUpload: true})
 
 	if notificationErr != nil {
 		fmt.Printf("Failed to notify the master: %v\n", notificationErr)
@@ -126,6 +152,8 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 	}
 
 	return &pb_d.UploadFileResponse{Success: true}, nil
+
+	
 }
 
 // GetFiles returns the list of files stored on the node.

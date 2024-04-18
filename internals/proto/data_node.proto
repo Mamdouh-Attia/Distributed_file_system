@@ -59,10 +59,12 @@ message ReceiveFileForReplicaRespone {
     bool success = 1;
 }
 
+
 service DataNode {
     
     // Receive the file from the client
     rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+
 
 
     // RPC for getting the file size
