@@ -230,11 +230,12 @@ func (m *Master) ReceiveFileList(ctx context.Context, filesRequest *pb_m.Receive
 
 // grpc function to handle the request from client to upload a file
 func (m *Master) AskForUpload(ctx context.Context, req *pb_m.Empty) (*pb_m.AskForUploadResponse, error) {
-	// Choose a random datakeeper node to store the file
-	dataKeeperNodeID := m.DataKeeperNodes[rand.Intn(len(m.DataKeeperNodes))]
 
-	// return the datakeeper node to the client
-	return &pb_m.AskForUploadResponse{Port: dataKeeperNodeID.Port}, nil
+	// Choose a random datakeeper node to store the file
+	dataKeeperNode := m.DataKeeperNodes[rand.Intn(len(m.DataKeeperNodes))]
+
+
+	return &pb_m.AskForUploadResponse{Port: dataKeeperNode.Port, Ip: dataKeeperNode.IP}, nil
 }
 
 // grpc function to handle the notification from the dataNode when the uploading is done
@@ -243,9 +244,11 @@ func (m *Master) UploadNotification(ctx context.Context, notification *pb_m.Uplo
 	newRecord := Record{FileName: notification.NewRecord.FileName, FilePath: notification.NewRecord.FilePath, alive: true, DataKeeperNodeID: int(notification.NewRecord.DataKeeperNodeID)}
 
 	m.Records = append(m.Records, newRecord)
-
+	
 	// print the file name in the records of the master
 	fmt.Printf("Master: File %v is uploaded to DataKeeperNode: %v\n", notification.NewRecord.FileName, notification.NewRecord.DataKeeperNodeID)
+
+
 
 	return &pb_m.UploadNotificationResponse{Success: true}, nil
 }

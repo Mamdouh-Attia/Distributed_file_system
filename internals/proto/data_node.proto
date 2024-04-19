@@ -5,15 +5,18 @@ option go_package =  "data_node/";
 package data_node;
 
 // Request for downloading a file
-message FileRequest {
+message DownloadFileRequest {
     // Name of the file to download
     string fileName = 1;
 }
 
+message DownloadFileResponse {
+    bool success = 1;
+}
+
 message UploadFileRequest {
     string fileName = 1;
-    int64    fileSize = 2;
-    string ip = 3;
+    int64  fileSize = 2;
     string port = 4;
     bytes fileContent = 5;
 }
@@ -24,11 +27,9 @@ message UploadFileResponse {
 
 // Response for downloading a file
 message FileResponse {
-    // Content of the file
-    // The file size
     string fileName = 1;
     int64 fileSize = 2;
-    
+    bytes fileContent = 3;    
 }
 
 message ReplicaRequest {
@@ -59,17 +60,25 @@ message ReceiveFileForReplicaRespone {
     bool success = 1;
 }
 
+message AskForFreePortResponse {
+    string port = 1;
+}
+
+message AskForFreePortRequest {
+    
+}
+
 service DataNode {
     
     // Receive the file from the client
     rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
 
+    // Ask for upload port
+    rpc AskForFreePort(AskForFreePortRequest) returns (AskForFreePortResponse);
 
-    // RPC for getting the file size
-    rpc GetFileSize(FileRequest) returns (FileResponse);
     
     // RPC for downloading a file
-    rpc DownloadFile(FileRequest) returns (stream FileChunk);
+    rpc DownloadFile(DownloadFileRequest) returns (DownloadFileResponse);
 
     //RPC to notify the data node that a file is being replicated
     rpc ReceiveFileForReplica(ReceiveFileForReplicaRequest) returns (ReceiveFileForReplicaRespone);

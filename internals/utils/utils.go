@@ -2,8 +2,13 @@
 package utils
 
 import (
+	pb_d "Distributed_file_system/internals/pb/data_node"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +27,17 @@ func GenerateID() int {
 	id := int(currentTime)%1000*1000 + randomNumber
 
 	return id
+}
+
+func ConvertStrIntoInt(str string) (int, error) {
+	var num int
+	_, err := fmt.Sscan(str, &num) // Handle potential parsing errors
+	if err != nil {
+		log.Printf("Failed to parse port number: %v", err)
+		return -1, err
+	}
+
+	return num, nil
 }
 
 // FindMP4Files finds all the .mp4 files in the specified directory and its subdirectories
@@ -78,4 +94,101 @@ func OpenFileFromDirectory(dir string, filename string) (*os.File, error) {
 	file, err := os.Open(filename)
 
 	return file, err
+}
+
+
+// TCP Listener connection
+func ReceiveTCP(ip string, port string) (net.Conn, error) {
+
+	//create a listener
+	listener, err := net.Listen("tcp", ip+":"+port)
+	if err != nil {
+		fmt.Printf("error creating listener: %v\n", err)
+		return nil, err
+	}
+	defer listener.Close()
+
+	
+	fmt.Print("Listening on " + ip + ":" + port + "\n")
+	//accept the connection
+	conn, err := listener.Accept()
+	if err != nil {
+		fmt.Printf("error accepting connection: %v\n", err)
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+
+func SendTCP(ip string, port string) (net.Conn, error) {
+	conn, errConn := net.Dial("tcp", ip+":"+port)
+
+	fmt.Print("Connected to " + ip + ":" + port + "\n")
+
+	if errConn != nil {
+		fmt.Printf("Failed to connect to server: %v", errConn)
+		return nil, errConn
+	}
+	
+	return conn, nil
+}
+
+
+// Serialize the request sent
+func Serialize(request any, conn net.Conn) error {
+	
+	serializedRequest, errSerialize := json.Marshal(request)
+
+	if errSerialize != nil {
+		fmt.Printf("Failed to serialize the request: %v", errSerialize)
+		return errSerialize
+	}
+
+	conn.Write(serializedRequest)
+
+
+	return nil
+}
+
+// Deserialize the response received 
+func Deserialize(data []byte, upload bool) error {
+	
+	uploadedFile := &pb_d.UploadFileRequest{}
+	downloadedFile := &pb_d.FileResponse{}
+	if upload {
+		err := json.Unmarshal(data, uploadedFile)
+		if err != nil {
+			fmt.Println("Error decoding uploadedFile:", err)
+			return err
+		}
+		
+		print("FileName: ", uploadedFile.FileName)
+
+		// store the uploadedFile content in the local uploadedFile
+		err = ioutil.WriteFile(uploadedFile.FileName, uploadedFile.FileContent, 0644)
+		if err != nil {
+			fmt.Printf("error saving the uploadedFile: %v\n", err)
+			return err
+		}
+
+	} else {
+		err := json.Unmarshal(data, downloadedFile)
+		if err != nil {
+			fmt.Println("Error decoding downloadedFile:", err)
+			return err
+		}
+		
+		print("FileName: ", downloadedFile.FileName)
+
+		// store the downloadedFile content in the local downloadedFile
+		err = ioutil.WriteFile(downloadedFile.FileName, downloadedFile.FileContent, 0644)
+		if err != nil {
+			fmt.Printf("error saving the downloadedFile: %v\n", err)
+			return err
+		}
+	}
+	
+
+	return nil
 }

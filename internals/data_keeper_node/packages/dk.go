@@ -3,15 +3,15 @@ package dk
 import (
 	pb_d "Distributed_file_system/internals/pb/data_node"
 	pb_m "Distributed_file_system/internals/pb/master_node"
+	"Distributed_file_system/internals/utils"
 	"encoding/json"
 	"io/ioutil"
 	"net"
-
-	"context"
 	"os"
 
+	"context"
+
 	"fmt"
-	"io"
 	"log"
 
 	"google.golang.org/grpc"
@@ -35,6 +35,7 @@ type DataKeeperNode struct {
 	IP    string   // IP address of the node
 	Port  string   // Port number the node is listening on
 	Files []string // List of filenames stored on the node
+	currBusyPorts int // a number indicating the current busy ports 
 }
 
 // NewDataKeeperNode creates a new DataKeeperNode instance with the provided parameters.
@@ -78,60 +79,56 @@ func (n *DataKeeperNode) GetFileByName(filename string) string {
 	return ""
 }
 
+func (n *DataKeeperNode) GetCurrentEmptyPort() string {
+	portAsNum, err := utils.ConvertStrIntoInt(n.Port)
+	if err != nil {
+		fmt.Print("Error converting the port into an integer")
+		return ""
+	}
+	portAsNum += n.currBusyPorts
+	return fmt.Sprint(portAsNum)
+}
+
+// grpc function to start listening for tcp connections
+// func (n *DataKeeperNode) StartListeningForTCP(ctx context.Context, req *pb_d.StartListeningForTCPRequest) (*pb_d.StartListeningForTCPResponse, error) {
+	
+// 	port := req.Port
+	
+// 	listener, err := net.Listen("tcp", n.IP+":"+port)
+// 	if err != nil {
+// 		fmt.Printf("error creating listener: %v\n", err)
+// 		return &pb_d.StartListeningForTCPResponse{Success: false}, err
+// 	}
+
+// 	defer listener.Close()
+
+	
+// 	conn, err := listener.Accept()
+// 	if err != nil {
+// 		fmt.Printf("error accepting connection: %v\n", err)
+// 		return &pb_d.StartListeningForTCPResponse{Success: false}, err
+// 	}
+
+// 	defer conn.Close()
+
+// 	// Handle the incoming connection
+// 	// go n.HandleConnection(conn)
+	
+// }
+
+
+// grpc function to send the current free port
+func (n* DataKeeperNode) AskForFreePort(ctx context.Context, req* pb_d.AskForFreePortRequest) (*pb_d.AskForFreePortResponse, error) {
+	n.currBusyPorts += 1
+	return &pb_d.AskForFreePortResponse{Port: n.GetCurrentEmptyPort()}, nil
+}
+
 // grpc function to receive the uploaded file from the client
 func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error) {
-
-	fileName := req.FileName
-	clintIp := req.Ip
-	clintPort := req.Port
-	//convert the file size from string to int64
-	// fileSize := req.FileSize
-	//Listen to the client
-
-	go func() {
-		//create a listener
-		listener, err := net.Listen("tcp", clintIp+":"+clintPort)
-		if err != nil {
-			fmt.Printf("error creating listener: %v\n", err)
-			return
-		}
-		defer listener.Close()
-
-		//accept the connection
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Printf("error accepting connection: %v\n", err)
-			return
-		}
-		defer conn.Close()
-
-		//Read the data
-		data, err := ioutil.ReadAll(conn)
-
-		if err != nil {
-			fmt.Printf("error reading the file content: %v\n", err)
-			return
-		}
-
-		receivedFile := &pb_d.UploadFileRequest{}
-		err = json.Unmarshal(data, receivedFile)
-		if err != nil {
-			fmt.Println("Error decoding file:", err)
-			return
-		}
-		print(data)
-
-		// store the file content in the local file
-		err = ioutil.WriteFile(receivedFile.FileName, receivedFile.FileContent, 0644)
-		if err != nil {
-			fmt.Printf("error saving the file: %v\n", err)
-			return
-		}
-
-	}()
-
-	n.AddFile(fileName)
+	
 	connMaster, errConn := n.ConnectToServer(defaultAdress)
+
+	masterClient := pb_m.NewMasterNodeClient(connMaster)
 
 	if errConn != nil {
 		fmt.Printf("error connecting to the master: %v\n", errConn)
@@ -140,67 +137,124 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 
 	defer connMaster.Close()
 
-	masterClient := pb_m.NewMasterNodeClient(connMaster)
+	fileName := req.FileName
+	listeningIp := n.IP
+	listeningPort := req.Port
 
-	_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}})
+	newRecord := &pb_m.Record{FileName: fileName, FilePath: fileName, DataKeeperNodeID: int32(n.ID), Alive: true}
 
-	if notificationErr != nil {
-		fmt.Printf("Failed to notify the master: %v\n", notificationErr)
-		return &pb_d.UploadFileResponse{Success: false}, notificationErr
-	}
+	fmt.Print("Uploading ....\n")
+	go func() error {
+		
+		n.currBusyPorts -= 1
+		conn, err := utils.ReceiveTCP(listeningIp, listeningPort)
+
+		if err != nil {
+
+			fmt.Printf("error in establishing tcp connection: %v\n", err)
+
+			return err
+		}
+
+		
+		// Read the data
+		data, readContentErr := ioutil.ReadAll(conn)
+
+		if readContentErr != nil {
+			fmt.Printf("error reading the file content: %v\n", readContentErr)
+			return readContentErr
+		}
+
+		deserializeError := utils.Deserialize(data, true) 
+
+		
+		if deserializeError != nil {
+			
+			fmt.Printf("error in deserializing the file content: %v\n", deserializeError)
+
+			return deserializeError
+		}
+
+		_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord})
+
+		if notificationErr != nil {
+			fmt.Printf("Failed to notify the master: %v\n", notificationErr)
+			return  notificationErr
+		}
+
+		n.AddFile(fileName)
+
+		return  nil
+	}()
+
 
 	return &pb_d.UploadFileResponse{Success: true}, nil
 }
 
-// GetFiles returns the list of files stored on the node.
-func (n *DataKeeperNode) GetFileSize(ctx context.Context, req *pb_d.FileRequest) (*pb_d.FileResponse, error) {
-	log.Printf("Received request to get file size for file: %s", req.FileName)
 
-	// Open the file
-	file, err := os.Open(req.FileName)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file: %v", err)
+// grpc function to download the file from the data node
+func (n *DataKeeperNode) DownloadFile(ctx context.Context, req *pb_d.DownloadFileRequest) (*pb_d.DownloadFileResponse, error) {
+
+	fileName := req.FileName
+
+	// open the file
+	file, errOpenFile := os.Open(fileName)
+
+	if errOpenFile != nil {
+		fmt.Printf("Failed to open the file: %v\n", errOpenFile)
+		return  &pb_d.DownloadFileResponse{Success: false} , errOpenFile
 	}
+
 	defer file.Close()
 
-	// Get file info
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("error getting file info: %v", err)
+	// get the file size
+	fileInfo, errFileInfo := file.Stat()
+
+	if errFileInfo != nil {
+		fmt.Printf("Failed to get the file info: %v\n", errFileInfo)
+		return &pb_d.DownloadFileResponse{Success: false}, errFileInfo
 	}
 
-	// Send file size to client
-	return &pb_d.FileResponse{FileName: req.FileName, FileSize: fileInfo.Size()}, nil
-}
+	fileSize := fileInfo.Size()
 
-func (n *DataKeeperNode) DownloadFile(req *pb_d.FileRequest, stream pb_d.DataNode_DownloadFileServer) error {
-
-	file, err := os.Open(req.FileName)
+	data, err := ioutil.ReadFile(fileName)
 
 	if err != nil {
-		return fmt.Errorf("error opening file: %v", err)
-	}
-	defer file.Close()
-
-	// Buffer to read file contents
-	buffer := make([]byte, 1024)
-
-	// Read file contents and send to client
-	for {
-		bytesRead, err := file.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("error reading file: %v", err)
-		}
-		// Send file chunk to client
-		if err := stream.Send(&pb_d.FileChunk{Data: buffer[:bytesRead]}); err != nil {
-			return fmt.Errorf("error sending file chunk: %v", err)
-		}
+		fmt.Printf("Failed to read the file: %v", err)
+		return &pb_d.DownloadFileResponse{Success: false}, err
 	}
 
-	return nil
+	go func() error {	
+
+		tcpConn, tcpConnErr := utils.ReceiveTCP(n.IP, n.GetCurrentEmptyPort())
+
+		if tcpConnErr != nil {
+			fmt.Printf("Failed to establish tcp connection: %v", tcpConnErr)
+			return tcpConnErr
+		}
+
+		// close the connection
+		defer tcpConn.Close()
+
+		fmt.Print("Establish connection\n")
+
+		response := &pb_d.FileResponse{FileName: fileName, FileContent: data, FileSize: fileSize}
+
+		//serialize the request
+		errSerialize := utils.Serialize(response, tcpConn)
+		fmt.Print("Establish Serialization\n")
+
+		if errSerialize != nil {
+			return errSerialize
+		}
+
+		
+
+		fmt.Print("The file was sent to the client, successfully :) \n")
+		return nil
+	}()
+
+	return &pb_d.DownloadFileResponse{Success: true}, nil
 }
 
 //TODO: Implement the following functions
@@ -270,20 +324,6 @@ func (n *DataKeeperNode) ReceiveFileForReplicaHandler(conn net.Conn) {
 		fmt.Printf("error saving the file: %v\n", err)
 	}
 
-	// fileName := req.FileName
-	// fileContent := req.FileContent
-	// fmt.Printf("Received request to replicate file: %s\n", fileName)
-
-	// err := utils.SaveFile(fileName, []byte(fileContent))
-
-	// if err != nil {
-	// 	fmt.Printf("error in saving the file locally, %v", err)
-	// 	return &pb_d.ReceiveFileForReplicaRespone{Success: false}, err
-	// }
-
-	// n.AddFile(fileName)
-
-	// return &pb_d.ReceiveFileForReplicaRespone{Success: true}, nil
 }
 
 // GRPC function to send the file to another data node for replication
@@ -296,17 +336,17 @@ func (n *DataKeeperNode) ReplicateFile(ctx context.Context, req *pb_d.ReplicaReq
 	rand_seed := req.PortRandomSeed
 
 	//change port
-	var portNum int
-	var portStr string
-	_, err := fmt.Sscan(sourcePort, &portNum) // Handle potential parsing errors
+	portNum, err := utils.ConvertStrIntoInt(sourcePort)
+	
 	if err != nil {
-		log.Printf("Failed to parse port number: %v", err)
+		return &pb_d.NotifyReplicaResponse{Success: false}, err
 	}
+
 	portNum += int(rand_seed)
 
 	log.Println("From replicate file: port number: ", portNum)
 	// Convert port number back to string
-	portStr = fmt.Sprint(portNum)
+	portStr := fmt.Sprint(portNum)
 
 	//connect to the destination machine tcp
 	conn, err := net.Dial("tcp", sourceIP+":"+portStr)
