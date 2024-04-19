@@ -7,12 +7,11 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net"
-
-	"context"
 	"os"
 
+	"context"
+
 	"fmt"
-	"io"
 	"log"
 
 	"google.golang.org/grpc"
@@ -80,6 +79,16 @@ func (n *DataKeeperNode) GetFileByName(filename string) string {
 	return ""
 }
 
+func (n *DataKeeperNode) GetCurrentEmptyPort() string {
+	portAsNum, err := utils.ConvertStrIntoInt(n.Port)
+	if err != nil {
+		fmt.Print("Error converting the port into an integer")
+		return ""
+	}
+	portAsNum += n.currBusyPorts
+	return fmt.Sprint(portAsNum)
+}
+
 // grpc function to start listening for tcp connections
 // func (n *DataKeeperNode) StartListeningForTCP(ctx context.Context, req *pb_d.StartListeningForTCPRequest) (*pb_d.StartListeningForTCPResponse, error) {
 	
@@ -111,16 +120,7 @@ func (n *DataKeeperNode) GetFileByName(filename string) string {
 // grpc function to send the current free port
 func (n* DataKeeperNode) AskForFreePort(ctx context.Context, req* pb_d.AskForFreePortRequest) (*pb_d.AskForFreePortResponse, error) {
 	n.currBusyPorts += 1
-	portNum, errConv  := utils.ConvertStrIntoInt(n.Port)
-
-	if errConv != nil {
-		fmt.Print("Error converting the port into an integer")
-		return &pb_d.AskForFreePortResponse{Port: ""}, errConv
-	}
-
-	portNum += n.currBusyPorts
-
-	return &pb_d.AskForFreePortResponse{Port: fmt.Sprint(portNum)}, nil
+	return &pb_d.AskForFreePortResponse{Port: n.GetCurrentEmptyPort()}, nil
 }
 
 // grpc function to receive the uploaded file from the client
@@ -191,55 +191,70 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 	return &pb_d.UploadFileResponse{Success: true}, nil
 }
 
-// GetFiles returns the list of files stored on the node.
-func (n *DataKeeperNode) GetFileSize(ctx context.Context, req *pb_d.FileRequest) (*pb_d.FileResponse, error) {
-	log.Printf("Received request to get file size for file: %s", req.FileName)
 
-	// Open the file
-	file, err := os.Open(req.FileName)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file: %v", err)
+// grpc function to download the file from the data node
+func (n *DataKeeperNode) DownloadFile(ctx context.Context, req *pb_d.DownloadFileRequest) (*pb_d.DownloadFileResponse, error) {
+
+	fileName := req.FileName
+
+	// open the file
+	file, errOpenFile := os.Open(fileName)
+
+	if errOpenFile != nil {
+		fmt.Printf("Failed to open the file: %v\n", errOpenFile)
+		return  &pb_d.DownloadFileResponse{Success: false} , errOpenFile
 	}
+
 	defer file.Close()
 
-	// Get file info
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("error getting file info: %v", err)
+	// get the file size
+	fileInfo, errFileInfo := file.Stat()
+
+	if errFileInfo != nil {
+		fmt.Printf("Failed to get the file info: %v\n", errFileInfo)
+		return &pb_d.DownloadFileResponse{Success: false}, errFileInfo
 	}
 
-	// Send file size to client
-	return &pb_d.FileResponse{FileName: req.FileName, FileSize: fileInfo.Size()}, nil
-}
+	fileSize := fileInfo.Size()
 
-func (n *DataKeeperNode) DownloadFile(req *pb_d.FileRequest, stream pb_d.DataNode_DownloadFileServer) error {
-
-	file, err := os.Open(req.FileName)
+	data, err := ioutil.ReadFile(fileName)
 
 	if err != nil {
-		return fmt.Errorf("error opening file: %v", err)
-	}
-	defer file.Close()
-
-	// Buffer to read file contents
-	buffer := make([]byte, 1024)
-
-	// Read file contents and send to client
-	for {
-		bytesRead, err := file.Read(buffer)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("error reading file: %v", err)
-		}
-		// Send file chunk to client
-		if err := stream.Send(&pb_d.FileChunk{Data: buffer[:bytesRead]}); err != nil {
-			return fmt.Errorf("error sending file chunk: %v", err)
-		}
+		fmt.Printf("Failed to read the file: %v", err)
+		return &pb_d.DownloadFileResponse{Success: false}, err
 	}
 
-	return nil
+	go func() error {	
+
+		tcpConn, tcpConnErr := utils.ReceiveTCP(n.IP, n.GetCurrentEmptyPort())
+
+		if tcpConnErr != nil {
+			fmt.Printf("Failed to establish tcp connection: %v", tcpConnErr)
+			return tcpConnErr
+		}
+
+		// close the connection
+		defer tcpConn.Close()
+
+		fmt.Print("Establish connection\n")
+
+		response := &pb_d.FileResponse{FileName: fileName, FileContent: data, FileSize: fileSize}
+
+		//serialize the request
+		errSerialize := utils.Serialize(response, tcpConn)
+		fmt.Print("Establish Serialization\n")
+
+		if errSerialize != nil {
+			return errSerialize
+		}
+
+		
+
+		fmt.Print("The file was sent to the client, successfully :) \n")
+		return nil
+	}()
+
+	return &pb_d.DownloadFileResponse{Success: true}, nil
 }
 
 //TODO: Implement the following functions

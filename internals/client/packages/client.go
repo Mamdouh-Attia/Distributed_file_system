@@ -1,9 +1,9 @@
 package client
 
 import (
-	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 
 	"context"
@@ -47,7 +47,7 @@ func (m *Client) ReplicateFile(ctx context.Context, req *pb_d.ReplicaRequest) (*
 	return &pb_d.NotifyReplicaResponse{Success: true}, nil
 
 }
-func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename string) error {
+func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, fileName string) error {
 
 	nodePort, nodeIP, errGettingPort := c.AskForUpload(master)
 
@@ -71,7 +71,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 	log.Printf("Connected to datakeeper node: %v\n", nodePort)
 
 	// open the file
-	file, errOpenFile := os.Open(filename)
+	file, errOpenFile := os.Open(fileName)
 
 	if errOpenFile != nil {
 		fmt.Printf("Failed to open the file: %v\n", errOpenFile)
@@ -90,7 +90,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 
 	fileSize := fileInfo.Size()
 
-	data, err := ioutil.ReadFile(filename)
+	data, err := ioutil.ReadFile(fileName)
 
 	if err != nil {
 		fmt.Printf("Failed to read the file: %v", err)
@@ -106,7 +106,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 
 	uploadPort := uploadPortResponse.Port
 	// grpc call the client
-	_, errUpload := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Port: uploadPort, FileContent: data})
+	_, errUpload := dataNodeClient.UploadFile(context.Background(), &pb_d.UploadFileRequest{FileName: fileName, FileSize: fileSize, Port: uploadPort, FileContent: data})
 
 	if errUpload != nil {
 		fmt.Printf("Failed to upload the file: %v", errUpload)
@@ -123,7 +123,7 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 
 	//convert file to bytes
 	//instantiate request
-	request := &pb_d.UploadFileRequest{FileName: filename, FileSize: fileSize, Port: uploadPort, FileContent: data}
+	request := &pb_d.UploadFileRequest{FileName: fileName, FileSize: fileSize, Port: uploadPort, FileContent: data}
 
 	//serialize the request
 	errSerialize := utils.Serialize(request, tcpConn)
@@ -132,104 +132,87 @@ func (c *Client) UploadFileToServer(master pb_m.MasterNodeClient, filename strin
 	return errSerialize
 }
 
-func (c *Client) DownloadFile(masterClient pb_m.MasterNodeClient, filename string) error {
+func (c *Client) DownloadFile(masterClient pb_m.MasterNodeClient, fileName string) error {
 
 	//1. the client should send a request to the master to get the datakeeper node that has the file
-	machines, errDownload := masterClient.AskForDownload(context.Background(), &pb_m.AskForDownloadRequest{FileName: filename})
+	machines, errAskForDownload := masterClient.AskForDownload(context.Background(), &pb_m.AskForDownloadRequest{FileName: fileName})
 
-	if errDownload != nil || len(machines.DataKeepers) == 0 {
-		fmt.Printf("Failed to get the datakeeper node: %v\n", errDownload)
-		return errDownload
+	if errAskForDownload != nil || len(machines.DataKeepers) == 0 {
+		fmt.Printf("Failed to get the datakeeper node: %v\n", errAskForDownload)
+		return errAskForDownload
 	}
 
 	// 2. the client now has list of datakeeper nodes IP and port to request the file from
+	
+	// For now, we will download from one machine
+	// We will implement the download from multiple machines later
 
-	// 3. Client MUST request from every port uniformly. (Parallel download is considered a bonus)
+	// connect to the datakeeper node
+	chosenDataNode := machines.DataKeepers[rand.Intn(len(machines.DataKeepers))]
 
-	//uniformly means that the client should request from every port in the list
+	dataConn, errDataConn := c.ConnectToServer(chosenDataNode.Ip + ":" + chosenDataNode.Port)
 
-	//parallel download means that the client should request from every port in the list at the same time
-
-	// so the client should create a go routine for each port in the list
-
-	// and each go routine should request the file from the datakeeper node
-
-	//create a channel to wait for the go routines to finish
-	ch := make(chan int)
-	for _, machine := range machines.DataKeepers {
-		go func(machine *pb_m.DataKeeper) {
-
-			// connect to the datakeeper node
-			dataConn, errDataConn := c.ConnectToServer(machine.Ip + ":" + machine.Port)
-
-			if errDataConn != nil {
-				fmt.Printf("Failed to connect to server: %v", errDataConn)
-				return
-			}
-
-			defer dataConn.Close()
-
-			// create a client
-			dataNodeClient := pb_d.NewDataNodeClient(dataConn)
-			log.Printf("Connected to datakeeper node: %v", machine)
-
-			// request the file size
-			fileSize, errGetFile := dataNodeClient.GetFileSize(context.Background(), &pb_d.FileRequest{FileName: filename})
-			if errGetFile != nil {
-				fmt.Printf("Failed to get the file size: %v", errGetFile)
-				return
-			}
-			//print the file size
-			fmt.Printf("File size: %v\n", fileSize.FileSize)
-
-			//request the file
-			stream, errDownloadFile := dataNodeClient.DownloadFile(context.Background(), &pb_d.FileRequest{FileName: filename})
-			if errDownloadFile != nil {
-				fmt.Printf("Failed to download the file: %v\n", errDownloadFile)
-				return
-			}
-
-			//create a file to write the file contents
-			os.Chdir("data")
-
-			// TODO: Check while there exists another file with that file name append the word copy to the begining of the name
-
-			file, errCreateFile := os.Create(filename)
-			if errCreateFile != nil {
-				fmt.Printf("Failed to create the file: %v", errCreateFile)
-				return
-			}
-			defer file.Close()
-
-			// read the file contents from the stream
-			for {
-
-				chunk, err := stream.Recv()
-
-				if err == io.EOF {
-					break
-				}
-
-				if err != nil {
-					fmt.Printf("Error while receiving chunk: %v", err)
-					return
-				}
-				//write the chunk to the file
-				if _, err := file.Write(chunk.Data); err != nil {
-					fmt.Printf("Failed to write to the file: %v", err)
-					return
-				}
-			}
-			//close the channel
-			ch <- 1
-		}(machine)
+	if errDataConn != nil {
+		fmt.Printf("Failed to connect to server: %v", errDataConn)
+		return errDataConn
 	}
-	//wait for the go routines to finish
-	for i := 0; i < len(machines.DataKeepers); i++ {
-		<-ch
+
+	defer dataConn.Close()
+
+	// create a client
+	dataNodeClient := pb_d.NewDataNodeClient(dataConn)
+	log.Printf("Connected to datakeeper node: %v\n", chosenDataNode.Port)
+
+	// ask the data keeper node for empty port for tcp connection
+	emptyPortResponse, errEmptyPort := dataNodeClient.AskForFreePort(context.Background(), &pb_d.AskForFreePortRequest{})
+
+	if errEmptyPort != nil {
+		fmt.Print("Error getting the empty port")
+		return errEmptyPort
 	}
-	//print that the download is finished
-	fmt.Println("Download finished")
+
+	_, errDownload := dataNodeClient.DownloadFile(context.Background(), &pb_d.DownloadFileRequest{FileName: fileName})
+
+	if errDownload != nil {
+		fmt.Printf("Error downloading the file %v, from the dataNodeKeeper: %v\n", fileName, chosenDataNode.Id)
+
+		return errDownload
+	}
+
+
+	emptyPort := emptyPortResponse.Port
+
+	// connect to the datakeeper node as TCP
+	tcpConn, errTcpConn := utils.SendTCP(chosenDataNode.Ip, emptyPort)
+
+	if errTcpConn != nil {
+		return errTcpConn
+	}
+	defer tcpConn.Close()
+
+
+	
+	// Read the data
+	data, readContentErr := ioutil.ReadAll(tcpConn)
+	
+	if readContentErr != nil {
+		fmt.Printf("error reading the file content: %v\n", readContentErr)
+		return readContentErr
+	}
+
+	deserializeError := utils.Deserialize(data, false) 
+
+	
+	if deserializeError != nil {
+		
+		fmt.Printf("error in deserializing the file content: %v\n", deserializeError)
+
+		return deserializeError
+	}
+	
+	fmt.Print("The file has been downloaded successfully :)\n")
 
 	return nil
+	
+
 }

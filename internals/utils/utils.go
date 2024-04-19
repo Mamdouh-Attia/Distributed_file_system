@@ -99,7 +99,7 @@ func OpenFileFromDirectory(dir string, filename string) (*os.File, error) {
 
 // TCP Listener connection
 func ReceiveTCP(ip string, port string) (net.Conn, error) {
-	
+
 	//create a listener
 	listener, err := net.Listen("tcp", ip+":"+port)
 	if err != nil {
@@ -137,7 +137,8 @@ func SendTCP(ip string, port string) (net.Conn, error) {
 
 // Serialize the request sent
 func Serialize(request any, conn net.Conn) error {
-		serializedRequest, errSerialize := json.Marshal(request)
+	
+	serializedRequest, errSerialize := json.Marshal(request)
 
 	if errSerialize != nil {
 		fmt.Printf("Failed to serialize the request: %v", errSerialize)
@@ -153,24 +154,41 @@ func Serialize(request any, conn net.Conn) error {
 // Deserialize the response received 
 func Deserialize(data []byte, upload bool) error {
 	
-	file := &pb_d.UploadFileRequest{}
-	if !upload {
-		file = &pb_d.UploadFileRequest{}
-	} 
-	err := json.Unmarshal(data, file)
-	if err != nil {
-		fmt.Println("Error decoding file:", err)
-		return err
+	uploadedFile := &pb_d.UploadFileRequest{}
+	downloadedFile := &pb_d.FileResponse{}
+	if upload {
+		err := json.Unmarshal(data, uploadedFile)
+		if err != nil {
+			fmt.Println("Error decoding uploadedFile:", err)
+			return err
+		}
+		
+		print("FileName: ", uploadedFile.FileName)
+
+		// store the uploadedFile content in the local uploadedFile
+		err = ioutil.WriteFile(uploadedFile.FileName, uploadedFile.FileContent, 0644)
+		if err != nil {
+			fmt.Printf("error saving the uploadedFile: %v\n", err)
+			return err
+		}
+
+	} else {
+		err := json.Unmarshal(data, downloadedFile)
+		if err != nil {
+			fmt.Println("Error decoding downloadedFile:", err)
+			return err
+		}
+		
+		print("FileName: ", downloadedFile.FileName)
+
+		// store the downloadedFile content in the local downloadedFile
+		err = ioutil.WriteFile(downloadedFile.FileName, downloadedFile.FileContent, 0644)
+		if err != nil {
+			fmt.Printf("error saving the downloadedFile: %v\n", err)
+			return err
+		}
 	}
 	
-	print("FileName: ", file.FileName)
-
-	// store the file content in the local file
-	err = ioutil.WriteFile(file.FileName, file.FileContent, 0644)
-	if err != nil {
-		fmt.Printf("error saving the file: %v\n", err)
-		return err
-	}
 
 	return nil
 }
