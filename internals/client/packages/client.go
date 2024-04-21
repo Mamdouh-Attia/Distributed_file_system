@@ -179,7 +179,6 @@ func (c *Client) DownloadFile(masterClient pb_m.MasterNodeClient, fileName strin
 		return errDownload
 	}
 
-
 	emptyPort := emptyPortResponse.Port
 
 	// connect to the datakeeper node as TCP
@@ -189,12 +188,10 @@ func (c *Client) DownloadFile(masterClient pb_m.MasterNodeClient, fileName strin
 		return errTcpConn
 	}
 	defer tcpConn.Close()
-
-
 	
 	// Read the data
 	data, readContentErr := ioutil.ReadAll(tcpConn)
-	
+
 	if readContentErr != nil {
 		fmt.Printf("error reading the file content: %v\n", readContentErr)
 		return readContentErr
@@ -202,17 +199,16 @@ func (c *Client) DownloadFile(masterClient pb_m.MasterNodeClient, fileName strin
 
 	deserializeError := utils.Deserialize(data, false) 
 
-	
+
 	if deserializeError != nil {
 		
 		fmt.Printf("error in deserializing the file content: %v\n", deserializeError)
-
+		
 		return deserializeError
 	}
 	
 	fmt.Print("The file has been downloaded successfully :)\n")
 
 	return nil
-	
 
 }

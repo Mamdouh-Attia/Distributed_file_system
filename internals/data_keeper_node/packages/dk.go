@@ -89,33 +89,6 @@ func (n *DataKeeperNode) GetCurrentEmptyPort() string {
 	return fmt.Sprint(portAsNum)
 }
 
-// grpc function to start listening for tcp connections
-// func (n *DataKeeperNode) StartListeningForTCP(ctx context.Context, req *pb_d.StartListeningForTCPRequest) (*pb_d.StartListeningForTCPResponse, error) {
-	
-// 	port := req.Port
-	
-// 	listener, err := net.Listen("tcp", n.IP+":"+port)
-// 	if err != nil {
-// 		fmt.Printf("error creating listener: %v\n", err)
-// 		return &pb_d.StartListeningForTCPResponse{Success: false}, err
-// 	}
-
-// 	defer listener.Close()
-
-	
-// 	conn, err := listener.Accept()
-// 	if err != nil {
-// 		fmt.Printf("error accepting connection: %v\n", err)
-// 		return &pb_d.StartListeningForTCPResponse{Success: false}, err
-// 	}
-
-// 	defer conn.Close()
-
-// 	// Handle the incoming connection
-// 	// go n.HandleConnection(conn)
-	
-// }
-
 
 // grpc function to send the current free port
 func (n* DataKeeperNode) AskForFreePort(ctx context.Context, req* pb_d.AskForFreePortRequest) (*pb_d.AskForFreePortResponse, error) {
@@ -125,17 +98,7 @@ func (n* DataKeeperNode) AskForFreePort(ctx context.Context, req* pb_d.AskForFre
 
 // grpc function to receive the uploaded file from the client
 func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileRequest) (*pb_d.UploadFileResponse, error) {
-	
-	connMaster, errConn := n.ConnectToServer(defaultAdress)
 
-	masterClient := pb_m.NewMasterNodeClient(connMaster)
-
-	if errConn != nil {
-		fmt.Printf("error connecting to the master: %v\n", errConn)
-		return &pb_d.UploadFileResponse{Success: false}, errConn
-	}
-
-	defer connMaster.Close()
 
 	fileName := req.FileName
 	listeningIp := n.IP
@@ -145,7 +108,7 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 
 	fmt.Print("Uploading ....\n")
 	go func() error {
-		
+
 		n.currBusyPorts -= 1
 		conn, err := utils.ReceiveTCP(listeningIp, listeningPort)
 
@@ -174,6 +137,17 @@ func (n *DataKeeperNode) UploadFile(ctx context.Context, req *pb_d.UploadFileReq
 
 			return deserializeError
 		}
+
+		connMaster, errConn := n.ConnectToServer(defaultAdress)
+
+		masterClient := pb_m.NewMasterNodeClient(connMaster)
+
+		if errConn != nil {
+			fmt.Printf("error connecting to the master: %v\n", errConn)
+			return errConn
+		}
+
+		defer connMaster.Close()
 
 		_, notificationErr := masterClient.UploadNotification(context.Background(), &pb_m.UploadNotificationRequest{NewRecord: newRecord})
 
